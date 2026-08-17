@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Type an Equation, See the Curve — AI Karyashala</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cream:#faf6ef; --paper:#fffcf5; --ink:#241d16; --muted:#6c6055; --rule:#e2d8c8;
+  --rust:#b8430a; --rust-soft:#f6e3d6; --teal:#0f7a6c; --teal-soft:#dcefeb; --gold:#c98a10;
+  --err:#a11b1b; --err-soft:#f8e4e0;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--cream); color:var(--ink);
+  font-family:'Inter Tight',system-ui,sans-serif; font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:radial-gradient(rgba(80,60,40,.13) 1px, transparent 1px);
+  background-size:3px 3px; opacity:.55;
+}
+.wrap{position:relative; z-index:1; max-width:1280px; margin:0 auto; padding:0 22px 48px}
+
+header.masthead{padding:46px 0 26px; border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--rust); margin:0 0 12px}
+h1{font-family:'Fraunces',serif; font-weight:600; font-size:clamp(30px,4.6vw,48px);
+  line-height:1.04; margin:0 0 14px; letter-spacing:-.02em}
+h1 em{font-style:italic; color:var(--rust)}
+.lede{max-width:62ch; color:var(--muted); margin:0; font-size:17px}
+
+.layout{display:grid; grid-template-columns:minmax(0,380px) minmax(0,1fr); gap:30px; padding-top:26px; align-items:start}
+
+/* ---------- panels ---------- */
+.card{background:var(--paper); border:1px solid var(--rule); border-radius:10px; padding:18px}
+.card + .card{margin-top:18px}
+.card h2{
+  font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 14px; font-weight:700;
+}
+
+/* ---------- equation rows ---------- */
+.row{display:grid; grid-template-columns:auto 1fr auto; gap:9px; align-items:center; margin-bottom:9px}
+.dot{width:13px; height:13px; border-radius:4px; border:1px solid rgba(0,0,0,.18); cursor:pointer;
+  transition:opacity .15s}
+.dot[data-off="1"]{opacity:.22}
+.eqin{
+  width:100%; font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--ink);
+  background:var(--cream); border:1px solid var(--rule); border-radius:7px; padding:9px 11px;
+  transition:border-color .15s, background .15s;
+}
+.eqin:focus{outline:none; border-color:var(--rust); background:#fff}
+.eqin.bad{border-color:var(--err); background:var(--err-soft)}
+.kill{
+  border:none; background:transparent; color:var(--muted); cursor:pointer;
+  font-family:'JetBrains Mono',monospace; font-size:16px; line-height:1; padding:4px 6px; border-radius:5px;
+}
+.kill:hover{color:var(--err); background:var(--err-soft)}
+.errline{
+  grid-column:2/4; margin:-4px 0 8px; font-family:'JetBrains Mono',monospace;
+  font-size:11.5px; color:var(--err);
+}
+.addrow{
+  font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.05em;
+  background:transparent; border:1px dashed var(--rule); border-radius:7px; color:var(--muted);
+  padding:9px; width:100%; cursor:pointer; transition:.15s;
+}
+.addrow:hover{border-color:var(--rust); color:var(--rust)}
+
+/* ---------- parameter sliders ---------- */
+.par{display:grid; grid-template-columns:auto 1fr auto; gap:11px; align-items:center; margin-bottom:11px}
+.par .nm{font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; color:var(--rust);
+  width:1.4em; text-align:center}
+.par .val{font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:700; color:var(--ink);
+  min-width:3.6em; text-align:right; font-variant-numeric:tabular-nums}
+.emptynote{font-size:13.5px; color:var(--muted); margin:0}
+input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:20px; background:transparent; cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:3px; background:var(--rule); border-radius:2px}
+input[type=range]::-moz-range-track{height:3px; background:var(--rule); border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+  background:var(--rust); border:2px solid var(--paper); margin-top:-7px; box-shadow:0 1px 3px rgba(0,0,0,.22)}
+input[type=range]::-moz-range-thumb{width:16px; height:16px; border-radius:50%; background:var(--rust);
+  border:2px solid var(--paper); box-shadow:0 1px 3px rgba(0,0,0,.22)}
+input[type=range]:focus-visible{outline:2px solid var(--rust); outline-offset:4px; border-radius:4px}
+
+/* ---------- examples ---------- */
+.exlist{display:flex; flex-direction:column; gap:6px}
+.ex{
+  text-align:left; font-family:'JetBrains Mono',monospace; font-size:12.5px;
+  background:var(--cream); border:1px solid var(--rule); border-radius:7px;
+  padding:9px 11px; cursor:pointer; color:var(--ink); transition:.15s; line-height:1.4;
+}
+.ex:hover{border-color:var(--rust); color:var(--rust)}
+.ex b{display:block; font-family:'Inter Tight',sans-serif; font-weight:600; font-size:12px;
+  color:var(--muted); letter-spacing:.02em; margin-bottom:2px}
+.ex:hover b{color:var(--rust)}
+
+/* ---------- graph ---------- */
+.stage{position:sticky; top:18px}
+.plotcard{background:var(--paper); border:1px solid var(--rule); border-radius:10px; padding:12px}
+.canvas-wrap{position:relative; width:100%; aspect-ratio:4/3; min-height:300px}
+canvas{width:100%; height:100%; display:block; border-radius:7px; touch-action:none; cursor:crosshair}
+.bar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px}
+.btn{
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.05em;
+  background:transparent; border:1px solid var(--rule); border-radius:6px; color:var(--muted);
+  padding:7px 11px; cursor:pointer; transition:.15s;
+}
+.btn:hover{border-color:var(--rust); color:var(--rust)}
+.readout{
+  margin-top:10px; padding:10px 12px; background:var(--cream); border:1px solid var(--rule);
+  border-radius:7px; font-family:'JetBrains Mono',monospace; font-size:12.5px;
+  min-height:42px; display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center;
+}
+.readout .lbl{color:var(--muted)}
+.readout .chip{display:flex; align-items:center; gap:7px}
+.readout .chip i{width:10px; height:10px; border-radius:3px; display:inline-block}
+.tips{margin:12px 0 0; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); line-height:1.7}
+
+.syntax{margin-top:18px}
+.syntax table{width:100%; border-collapse:collapse; font-size:13.5px}
+.syntax td{padding:5px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+.syntax td:first-child{font-family:'JetBrains Mono',monospace; color:var(--rust); width:44%; padding-right:12px}
+.syntax tr:last-child td{border-bottom:none}
+
+footer{margin-top:34px; padding-top:20px; border-top:1px solid var(--rule);
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted);
+  display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap}
+
+@media(max-width:960px){
+  .layout{grid-template-columns:1fr}
+  .stage{position:static; order:-1}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{
+  body{background:#fff} body::before{display:none}
+  .layout{grid-template-columns:1fr} .stage{position:static}
+  .bar,.addrow,.kill,.exlist{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">AI Karyashala · Mathematics for Engineers</p>
+  <h1>Type an equation. <em>See the curve.</em></h1>
+  <p class="lede">Write the rule in the box and the picture appears beside it. Any letter you use apart from x and y turns into a slider by itself — so <code>y = a*x + b</code> gives you two knobs to turn, and you can watch which part of the shape each one controls.</p>
+</header>
+
+<div class="layout">
+
+  <div class="side">
+    <div class="card">
+      <h2>Equations</h2>
+      <div id="rows"></div>
+      <button class="addrow" id="add">+ add another equation</button>
+    </div>
+
+    <div class="card">
+      <h2>Sliders</h2>
+      <div id="params"></div>
+    </div>
+
+    <div class="card">
+      <h2>Try one of these</h2>
+      <div class="exlist" id="examples"></div>
+    </div>
+
+    <div class="card syntax">
+      <h2>How to write it</h2>
+      <table>
+        <tr><td>2*x  ·  2x</td><td>Both mean two times x</td></tr>
+        <tr><td>x^2  ·  x*x</td><td>x squared</td></tr>
+        <tr><td>y = 3x - 4</td><td>y on the left, a rule for it on the right</td></tr>
+        <tr><td>x = y^2 + 2</td><td>Fine the other way round too</td></tr>
+        <tr><td>x^2 + y^2 = 25</td><td>x and y on both sides — still drawn</td></tr>
+        <tr><td>sqrt(x), abs(x)</td><td>Square root, distance from zero</td></tr>
+        <tr><td>sin(x), cos(x), tan(x)</td><td>In radians</td></tr>
+        <tr><td>ln(x), log(x), exp(x)</td><td>Natural log, log base 10, e^x</td></tr>
+        <tr><td>pi, e</td><td>3.14159…, 2.71828…</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="plotcard">
+      <div class="canvas-wrap"><canvas id="cv"></canvas></div>
+      <div class="bar">
+        <button class="btn" data-zoom="0.7">zoom in</button>
+        <button class="btn" data-zoom="1.4">zoom out</button>
+        <button class="btn" id="reset">reset view</button>
+        <button class="btn" id="grid" aria-pressed="true">hide grid</button>
+      </div>
+      <div class="readout" id="readout"></div>
+      <p class="tips">drag the graph to move it · scroll or pinch to zoom · move across it to read values</p>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>AI Karyashala · Visakhapatnam</span>
+  <span>Works offline · print-friendly</span>
+</footer>
+</div>
+
+<script>
+"use strict";
+
+/* ======================================================================
+   1. EXPRESSION PARSER
+   A small recursive-descent parser. Hand-written rather than eval() so
+   that a typo produces a message a student can act on.
+   ====================================================================== */
+
+const FUNCS = {
+  sin:Math.sin, cos:Math.cos, tan:Math.tan,
+  asin:Math.asin, acos:Math.acos, atan:Math.atan,
+  sinh:Math.sinh, cosh:Math.cosh, tanh:Math.tanh,
+  sqrt:Math.sqrt, abs:Math.abs, exp:Math.exp,
+  ln:Math.log, log:Math.log10, log10:Math.log10,
+  floor:Math.floor, ceil:Math.ceil, round:Math.round, sign:Math.sign
+};
+const CONSTS = { pi:Math.PI, e:Math.E };
+const FNAMES = Object.keys(FUNCS).sort((a,b)=> b.length-a.length);
+
+function tokenize(src){
+  const s = src
+    .replace(/\u2212/g,"-").replace(/\u00d7/g,"*").replace(/\u00f7/g,"/")
+    .replace(/\u00b2/g,"^2").replace(/\u00b3/g,"^3")
+    .replace(/\u221a/g,"sqrt");
+  const out = [];
+  let i = 0;
+  while(i < s.length){
+    const c = s[i];
+    if(c === " " || c === "\t"){ i++; continue; }
+    if(/[0-9.]/.test(c)){
+      let j = i;
+      while(j < s.length && /[0-9.]/.test(s[j])) j++;
+      const text = s.slice(i,j);
+      if((text.match(/\./g)||[]).length > 1) throw err(`"${text}" has more than one decimal point`, i);
+      out.push({ k:"num", v:parseFloat(text), at:i });
+      i = j; continue;
+    }
+    if(/[a-zA-Z]/.test(c)){
+      const rest = s.slice(i).toLowerCase();
+      const fn = FNAMES.find(n => rest.startsWith(n));
+      if(fn){ out.push({ k:"fn", v:fn, at:i }); i += fn.length; continue; }
+      if(rest.startsWith("pi")){ out.push({ k:"num", v:Math.PI, at:i }); i += 2; continue; }
+      if(rest[0] === "e"){ out.push({ k:"num", v:Math.E, at:i }); i += 1; continue; }
+      // a lone letter — so "xy" reads as x times y, the way it does on paper
+      out.push({ k:"var", v:c.toLowerCase(), at:i }); i++; continue;
+    }
+    if("+-*/^(),".includes(c)){ out.push({ k:c, at:i }); i++; continue; }
+    if(c === "="){ out.push({ k:"=", at:i }); i++; continue; }
+    throw err(`I don't understand the character "${c}"`, i);
+  }
+  return out;
+}
+
+function err(msg, at){ const e = new Error(msg); e.at = at; return e; }
+
+function parseExpr(ts, pos){
+  let [node, p] = parseTerm(ts, pos);
+  while(p < ts.length && (ts[p].k === "+" || ts[p].k === "-")){
+    const op = ts[p].k;
+    const [rhs, np] = parseTerm(ts, p+1);
+    node = { t:"bin", op, a:node, b:rhs }; p = np;
+  }
+  return [node, p];
+}
+
+function startsValue(tk){
+  return tk && (tk.k === "num" || tk.k === "var" || tk.k === "fn" || tk.k === "(");
+}
+
+function parseTerm(ts, pos){
+  let [node, p] = parseUnary(ts, pos);
+  for(;;){
+    if(p < ts.length && (ts[p].k === "*" || ts[p].k === "/")){
+      const op = ts[p].k;
+      const [rhs, np] = parseUnary(ts, p+1);
+      node = { t:"bin", op, a:node, b:rhs }; p = np; continue;
+    }
+    // implied multiplication: 2x, 3(x+1), x y
+    if(startsValue(ts[p])){
+      const [rhs, np] = parseUnary(ts, p);
+      node = { t:"bin", op:"*", a:node, b:rhs }; p = np; continue;
+    }
+    break;
+  }
+  return [node, p];
+}
+
+function parseUnary(ts, pos){
+  if(pos < ts.length && (ts[pos].k === "-" || ts[pos].k === "+")){
+    const sign = ts[pos].k;
+    const [node, p] = parseUnary(ts, pos+1);
+    return [sign === "-" ? { t:"neg", a:node } : node, p];
+  }
+  return parsePower(ts, pos);
+}
+
+function parsePower(ts, pos){
+  const [base, p] = parsePrimary(ts, pos);
+  if(p < ts.length && ts[p].k === "^"){
+    const [exp, np] = parseUnary(ts, p+1);   // right-associative, and -1 allowed
+    return [{ t:"bin", op:"^", a:base, b:exp }, np];
+  }
+  return [base, p];
+}
+
+function parsePrimary(ts, pos){
+  const tk = ts[pos];
+  if(!tk) throw err("the equation stops early — something is missing at the end", pos);
+  if(tk.k === "num") return [{ t:"num", v:tk.v }, pos+1];
+  if(tk.k === "var") return [{ t:"var", n:tk.v }, pos+1];
+  if(tk.k === "fn"){
+    const [arg, p] = ts[pos+1] && ts[pos+1].k === "(" ? parseParen(ts, pos+1) : parsePower(ts, pos+1);
+    return [{ t:"call", n:tk.v, a:arg }, p];
+  }
+  if(tk.k === "(") return parseParen(ts, pos);
+  throw err(`"${tk.k === "=" ? "=" : (tk.v !== undefined ? tk.v : tk.k)}" doesn't belong here`, tk.at);
+}
+
+function parseParen(ts, pos){
+  const [node, p] = parseExpr(ts, pos+1);
+  if(!ts[p] || ts[p].k !== ")") throw err("a bracket was opened and never closed", ts[pos].at);
+  return [node, p+1];
+}
+
+function parse(src){
+  const ts = tokenize(src);
+  if(!ts.length) throw err("nothing to draw yet", 0);
+  const [node, p] = parseExpr(ts, 0);
+  if(p < ts.length) throw err(`I got stuck at "${ts[p].v !== undefined ? ts[p].v : ts[p].k}"`, ts[p].at);
+  return node;
+}
+
+/* ---- turn the tree into a fast function of a scope object ---- */
+function compile(n){
+  switch(n.t){
+    case "num": { const v = n.v; return () => v; }
+    case "var": { const k = n.n; return s => (k in s ? s[k] : NaN); }
+    case "neg": { const a = compile(n.a); return s => -a(s); }
+    case "call": { const f = FUNCS[n.n], a = compile(n.a); return s => f(a(s)); }
+    case "bin": {
+      const a = compile(n.a), b = compile(n.b);
+      switch(n.op){
+        case "+": return s => a(s) + b(s);
+        case "-": return s => a(s) - b(s);
+        case "*": return s => a(s) * b(s);
+        case "/": return s => a(s) / b(s);
+        case "^": return s => Math.pow(a(s), b(s));
+      }
+    }
+  }
+  throw err("I couldn't read that equation", 0);
+}
+
+function varsIn(n, set){
+  set = set || new Set();
+  if(n.t === "var") set.add(n.n);
+  if(n.a) varsIn(n.a, set);
+  if(n.b) varsIn(n.b, set);
+  return set;
+}
+const isBareVar = (n, name) => n.t === "var" && n.n === name;
+
+/* ---- read a whole equation and decide how to draw it ---- */
+function readEquation(src){
+  const text = src.trim();
+  if(!text) return null;
+  const sides = text.split("=");
+  if(sides.length > 2) throw err("there is more than one = sign", 0);
+
+  let lhsAst, rhsAst;
+  if(sides.length === 1){
+    lhsAst = { t:"var", n:"y" };            // bare expression means "y = ..."
+    rhsAst = parse(sides[0]);
+  }else{
+    if(!sides[0].trim()) throw err("nothing on the left of the = sign", 0);
+    if(!sides[1].trim()) throw err("nothing on the right of the = sign", 0);
+    lhsAst = parse(sides[0]);
+    rhsAst = parse(sides[1]);
+  }
+
+  const lv = varsIn(lhsAst), rv = varsIn(rhsAst);
+  const all = new Set([...lv, ...rv]);
+  for(const v of all){
+    if(v !== "x" && v !== "y" && !(v in CONSTS) && !/^[a-z]$/.test(v))
+      throw err(`I don't know what "${v}" is`, 0);
+  }
+
+  // y = f(x)  — draw straight across
+  if(isBareVar(lhsAst,"y") && !rv.has("y")) return mk("y", rhsAst, all);
+  if(isBareVar(rhsAst,"y") && !lv.has("y")) return mk("y", lhsAst, all);
+  // x = f(y)  — draw straight down
+  if(isBareVar(lhsAst,"x") && !rv.has("x")) return mk("x", rhsAst, all);
+  if(isBareVar(rhsAst,"x") && !lv.has("x")) return mk("x", lhsAst, all);
+
+  // anything else — trace where left minus right equals zero
+  const F = { t:"bin", op:"-", a:lhsAst, b:rhsAst };
+  if(!all.has("x") && !all.has("y")) throw err("this has no x and no y, so there is nothing to draw", 0);
+  return { mode:"implicit", f:compile(F), vars:all, params:freeParams(all) };
+}
+
+function mk(solvedFor, ast, all){
+  return { mode:solvedFor, f:compile(ast), vars:all, params:freeParams(all) };
+}
+function freeParams(all){
+  return [...all].filter(v => v !== "x" && v !== "y" && !(v in CONSTS)).sort();
+}
+
+/* ======================================================================
+   2. STATE
+   ====================================================================== */
+
+const COLORS = ["#b8430a","#0f7a6c","#2f5d8c","#b07a10","#7a3b6b","#4a7c1f"];
+
+const state = {
+  rows: [],                 // {id, text, on, color, parsed, error}
+  params: {},               // name -> value, kept across edits
+  view: { cx:0, cy:0, upp:0.045 },   // centre and units-per-pixel
+  showGrid: true,
+  cursor: null,
+  nextId: 1
+};
+
+const EXAMPLES = [
+  { label:"A straight line",        eqs:["y = m*x + c"],            p:{ m:1, c:1 } },
+  { label:"The five from class",    eqs:["y = x + 1","y = 2x + 5","y = x^2 + 2","x = y^2 + 2","x + y = 3"], p:{} },
+  { label:"A parabola with 3 knobs",eqs:["y = a*x^2 + b*x + c"],    p:{ a:1, b:0, c:0 } },
+  { label:"A circle",               eqs:["x^2 + y^2 = r^2"],        p:{ r:5 } },
+  { label:"Two lines that cross",   eqs:["y = 2x + 1","y = -x + 4"],p:{} },
+  { label:"A hyperbola",            eqs:["x*y = k"],                p:{ k:4 } },
+  { label:"A cubic",                eqs:["y = x^3 - k*x"],          p:{ k:3 } },
+  { label:"A wave",                 eqs:["y = a*sin(b*x)"],         p:{ a:3, b:1 } }
+];
+
+/* ======================================================================
+   3. UI
+   ====================================================================== */
+
+const rowsEl = document.getElementById("rows");
+const paramsEl = document.getElementById("params");
+const readoutEl = document.getElementById("readout");
+const cv = document.getElementById("cv");
+
+function addRow(text){
+  const row = { id: state.nextId++, text: text || "", on:true,
+                color: COLORS[state.rows.length % COLORS.length], parsed:null, error:null };
+  state.rows.push(row);
+  return row;
+}
+
+function renderRows(){
+  rowsEl.innerHTML = "";
+  state.rows.forEach(row=>{
+    const wrap = document.createElement("div");
+    wrap.className = "row";
+    wrap.innerHTML = `
+      <button class="dot" style="background:${row.color}" data-off="${row.on?0:1}"
+        title="show or hide this curve" aria-label="show or hide this curve"></button>
+      <input class="eqin" type="text" spellcheck="false" autocomplete="off"
+        placeholder="y = x + 1" value="${row.text.replace(/"/g,"&quot;")}">
+      <button class="kill" title="remove" aria-label="remove this equation">&times;</button>`;
+    rowsEl.appendChild(wrap);
+
+    const input = wrap.querySelector(".eqin");
+    input.addEventListener("input", ()=>{ row.text = input.value; recompute(); });
+    input.addEventListener("keydown", e=>{
+      if(e.key === "Enter"){ e.preventDefault(); addRow(""); renderRows(); focusLast(); }
+    });
+    wrap.querySelector(".dot").addEventListener("click", ()=>{ row.on = !row.on; renderRows(); draw(); });
+    wrap.querySelector(".kill").addEventListener("click", ()=>{
+      state.rows = state.rows.filter(r => r.id !== row.id);
+      if(!state.rows.length) addRow("");
+      renderRows(); recompute();
+    });
+
+    if(row.error){
+      input.classList.add("bad");
+      const e = document.createElement("div");
+      e.className = "errline";
+      e.textContent = row.error;
+      rowsEl.appendChild(e);
+    }
+  });
+}
+
+function focusLast(){
+  const all = rowsEl.querySelectorAll(".eqin");
+  if(all.length) all[all.length-1].focus();
+}
+
+function renderParams(){
+  const needed = new Set();
+  state.rows.forEach(r=>{ if(r.parsed) r.parsed.params.forEach(p => needed.add(p)); });
+  const names = [...needed].sort();
+
+  if(!names.length){
+    paramsEl.innerHTML = `<p class="emptynote">Use a letter other than x or y — like <code>y = m*x + c</code> — and a slider for it appears here.</p>`;
+    return;
+  }
+  paramsEl.innerHTML = "";
+  names.forEach(nm=>{
+    if(!(nm in state.params)) state.params[nm] = 1;
+    const row = document.createElement("div");
+    row.className = "par";
+    row.innerHTML = `<span class="nm">${nm}</span>
+      <input type="range" min="-10" max="10" step="0.25" value="${state.params[nm]}"
+        aria-label="value of ${nm}">
+      <span class="val">${fmtNum(state.params[nm])}</span>`;
+    paramsEl.appendChild(row);
+    const slider = row.querySelector("input");
+    const out = row.querySelector(".val");
+    slider.addEventListener("input", ()=>{
+      state.params[nm] = parseFloat(slider.value);
+      out.textContent = fmtNum(state.params[nm]);
+      draw();
+    });
+    slider.addEventListener("dblclick", ()=>{
+      state.params[nm] = 1; slider.value = 1; out.textContent = "1"; draw();
+    });
+  });
+}
+
+function renderExamples(){
+  const box = document.getElementById("examples");
+  EXAMPLES.forEach(ex=>{
+    const b = document.createElement("button");
+    b.className = "ex";
+    b.innerHTML = `<b>${ex.label}</b>${ex.eqs.join("   ·   ")}`;
+    b.addEventListener("click", ()=>{
+      state.rows = [];
+      ex.eqs.forEach(t => addRow(t));
+      Object.assign(state.params, ex.p);
+      resetView();
+      renderRows(); recompute();
+    });
+    box.appendChild(b);
+  });
+}
+
+function fmtNum(v){
+  if(!isFinite(v)) return "—";
+  const r = Math.round(v*1000)/1000;
+  return (Number.isInteger(r) ? String(r) : r.toFixed(2)).replace("-","\u2212");
+}
+
+/* ======================================================================
+   4. PARSE + DRAW PIPELINE
+   ====================================================================== */
+
+function recompute(){
+  state.rows.forEach(row=>{
+    row.parsed = null; row.error = null;
+    if(!row.text.trim()) return;
+    try{ row.parsed = readEquation(row.text); }
+    catch(e){ row.error = e.message; }
+  });
+  renderRows();
+  renderParams();
+  draw();
+}
+
+function frame(){
+  const rect = cv.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(w*dpr), ph = Math.round(h*dpr);
+  if(cv.width !== pw || cv.height !== ph){ cv.width = pw; cv.height = ph; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const u = state.view.upp;                       // same in both directions, always
+  const x0 = state.view.cx - (w/2)*u, y0 = state.view.cy - (h/2)*u;
+  return {
+    ctx, w, h, u, x0, y0,
+    x1: x0 + w*u, y1: y0 + h*u,
+    X: x => (x - x0)/u,
+    Y: y => h - (y - y0)/u,
+    xAt: px => x0 + px*u,
+    yAt: py => y0 + (h - py)*u
+  };
+}
+
+function niceStep(u, minPx){
+  const raw = minPx*u;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw/mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+}
+function axisLabel(v, step){
+  const dp = Math.max(0, -Math.floor(Math.log10(step)));
+  const s = v.toFixed(Math.min(6, dp));
+  return s.replace(/^-/,"\u2212");
+}
+
+function drawGrid(g){
+  const { ctx, w, h } = g;
+  const major = niceStep(g.u, 78);
+  const minor = major/5;
+
+  if(state.showGrid){
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#efe6d6";
+    ctx.beginPath();
+    for(let x = Math.ceil(g.x0/minor)*minor; x <= g.x1; x += minor){
+      const px = Math.round(g.X(x))+.5; ctx.moveTo(px,0); ctx.lineTo(px,h);
+    }
+    for(let y = Math.ceil(g.y0/minor)*minor; y <= g.y1; y += minor){
+      const py = Math.round(g.Y(y))+.5; ctx.moveTo(0,py); ctx.lineTo(w,py);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "#e2d5bf";
+    ctx.beginPath();
+    for(let x = Math.ceil(g.x0/major)*major; x <= g.x1; x += major){
+      const px = Math.round(g.X(x))+.5; ctx.moveTo(px,0); ctx.lineTo(px,h);
+    }
+    for(let y = Math.ceil(g.y0/major)*major; y <= g.y1; y += major){
+      const py = Math.round(g.Y(y))+.5; ctx.moveTo(0,py); ctx.lineTo(w,py);
+    }
+    ctx.stroke();
+  }
+
+  // axes, pinned to the edge when the origin scrolls away
+  const ax = Math.min(h-0.5, Math.max(0.5, Math.round(g.Y(0))+.5));
+  const ay = Math.min(w-0.5, Math.max(0.5, Math.round(g.X(0))+.5));
+  ctx.strokeStyle = "#8d8272"; ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, ax); ctx.lineTo(w, ax);
+  ctx.moveTo(ay, 0); ctx.lineTo(ay, h);
+  ctx.stroke();
+
+  // numbers
+  ctx.font = "500 10px 'JetBrains Mono', monospace";
+  ctx.fillStyle = "#8a7f6f";
+  const halo = (t,x,y)=>{ ctx.strokeStyle = "#fffcf5"; ctx.lineWidth = 3; ctx.lineJoin="round";
+                          ctx.strokeText(t,x,y); ctx.fillText(t,x,y); };
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for(let x = Math.ceil(g.x0/major)*major; x <= g.x1; x += major){
+    if(Math.abs(x) < major/100) continue;
+    const px = g.X(x);
+    if(px < 16 || px > w-16) continue;
+    halo(axisLabel(x, major), px, Math.min(h-13, ax+5));
+  }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for(let y = Math.ceil(g.y0/major)*major; y <= g.y1; y += major){
+    if(Math.abs(y) < major/100) continue;
+    const py = g.Y(y);
+    if(py < 10 || py > h-10) continue;
+    halo(axisLabel(y, major), Math.max(26, ay-6), py);
+  }
+  ctx.fillStyle = "#6c6055";
+  ctx.font = "600 11px 'JetBrains Mono', monospace";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";  halo("y", Math.min(w-14, ay+6), 6);
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom"; halo("x", w-6, Math.max(14, ax-5));
+}
+
+/* ---- explicit curves: walk one pixel at a time ---- */
+function drawExplicit(g, row){
+  const { ctx } = g;
+  const scope = Object.assign({}, state.params);
+  const along = row.parsed.mode === "y";
+  const n = along ? g.w : g.h;
+  const span = along ? g.h : g.w;
+
+  ctx.beginPath();
+  let started = false, prev = null;
+  for(let i = 0; i <= n; i++){
+    let sx, sy;
+    if(along){ scope.x = g.xAt(i); sy = row.parsed.f(scope); sx = scope.x; }
+    else     { scope.y = g.yAt(i); sx = row.parsed.f(scope); sy = scope.y; }
+    const val = along ? sy : sx;
+    if(!isFinite(val)){ started = false; prev = null; continue; }
+    const px = along ? i : g.X(sx);
+    const py = along ? g.Y(sy) : i;
+    const q  = along ? py : px;
+    // one step that leaps clean off one edge and back in from the other
+    // is an asymptote, not a line worth joining up
+    if(prev !== null && Math.abs(q - prev) > span &&
+       ((prev < 0 && q > span) || (prev > span && q < 0))){ started = false; }
+    prev = q;
+    if(q < -1e6 || q > 1e6){ started = false; continue; }
+    started ? ctx.lineTo(px,py) : (ctx.moveTo(px,py), started = true);
+  }
+  ctx.stroke();
+}
+
+/* ---- implicit curves: marching squares on left-minus-right ---- */
+function drawImplicit(g, row){
+  const { ctx } = g;
+  const scope = Object.assign({}, state.params);
+  const step = 5;
+  const cols = Math.ceil(g.w/step), rows = Math.ceil(g.h/step);
+  const f = row.parsed.f;
+
+  const grid = new Float64Array((cols+1)*(rows+1));
+  for(let j = 0; j <= rows; j++){
+    scope.y = g.yAt(j*step);
+    for(let i = 0; i <= cols; i++){
+      scope.x = g.xAt(i*step);
+      grid[j*(cols+1)+i] = f(scope);
+    }
+  }
+
+  ctx.beginPath();
+  const at = (i,j) => grid[j*(cols+1)+i];
+  const cross = (va, vb, a, b) => a + (b-a)*(0 - va)/(vb - va);
+
+  for(let j = 0; j < rows; j++){
+    for(let i = 0; i < cols; i++){
+      const v00 = at(i,j), v10 = at(i+1,j), v11 = at(i+1,j+1), v01 = at(i,j+1);
+      if(!isFinite(v00) || !isFinite(v10) || !isFinite(v11) || !isFinite(v01)) continue;
+      const mx = Math.max(v00,v10,v11,v01), mn = Math.min(v00,v10,v11,v01);
+      if(mn > 0 || mx < 0) continue;              // no crossing in this cell
+      if(mx - mn > 1e3) continue;                 // a pole, not a curve
+
+      const x0 = i*step, x1 = (i+1)*step, y0 = j*step, y1 = (j+1)*step;
+      const pts = [];
+      if((v00 < 0) !== (v10 < 0)) pts.push([cross(v00,v10,x0,x1), y0]);
+      if((v10 < 0) !== (v11 < 0)) pts.push([x1, cross(v10,v11,y0,y1)]);
+      if((v01 < 0) !== (v11 < 0)) pts.push([cross(v01,v11,x0,x1), y1]);
+      if((v00 < 0) !== (v01 < 0)) pts.push([x0, cross(v00,v01,y0,y1)]);
+      for(let k = 0; k+1 < pts.length; k += 2){
+        ctx.moveTo(pts[k][0], pts[k][1]);
+        ctx.lineTo(pts[k+1][0], pts[k+1][1]);
+      }
+    }
+  }
+  ctx.stroke();
+}
+
+function draw(){
+  const g = frame();
+  const { ctx, w, h } = g;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = "#fffcf5";
+  ctx.fillRect(0,0,w,h);
+  drawGrid(g);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,0,w,h); ctx.clip();
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  state.rows.forEach(row=>{
+    if(!row.on || !row.parsed) return;
+    ctx.strokeStyle = row.color;
+    ctx.lineWidth = 2.6;
+    if(row.parsed.mode === "implicit") drawImplicit(g, row);
+    else drawExplicit(g, row);
+  });
+  ctx.restore();
+
+  drawCursor(g);
+  renderReadout(g);
+}
+
+function drawCursor(g){
+  if(!state.cursor) return;
+  const { ctx } = g;
+  const px = g.X(state.cursor.x);
+  const scope = Object.assign({}, state.params);
+  state.rows.forEach(row=>{
+    if(!row.on || !row.parsed || row.parsed.mode !== "y") return;
+    scope.x = state.cursor.x;
+    const y = row.parsed.f(scope);
+    if(!isFinite(y)) return;
+    const py = g.Y(y);
+    if(py < -50 || py > g.h+50) return;
+    ctx.beginPath();
+    ctx.arc(px, py, 4.5, 0, Math.PI*2);
+    ctx.fillStyle = row.color; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#fffcf5"; ctx.stroke();
+  });
+  ctx.save();
+  ctx.setLineDash([3,4]); ctx.strokeStyle = "#b3a795"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, g.h); ctx.stroke();
+  ctx.restore();
+}
+
+function renderReadout(g){
+  const major = niceStep(g.u, 78);
+  if(!state.cursor){
+    readoutEl.innerHTML = `<span class="lbl">move across the graph to read values off the curves</span>`;
+    return;
+  }
+  const x = state.cursor.x;
+  const scope = Object.assign({}, state.params);
+  const bits = [`<span class="lbl">x = ${axisLabel(x, major/10)}</span>`];
+  state.rows.forEach(row=>{
+    if(!row.on || !row.parsed) return;
+    if(row.parsed.mode !== "y") return;
+    scope.x = x;
+    const y = row.parsed.f(scope);
+    bits.push(`<span class="chip"><i style="background:${row.color}"></i>y = ${
+      isFinite(y) ? axisLabel(y, major/10) : "not defined here"}</span>`);
+  });
+  if(bits.length === 1) bits.push(`<span class="lbl">y = ${axisLabel(state.cursor.y, major/10)} (cursor)</span>`);
+  readoutEl.innerHTML = bits.join("");
+}
+
+/* ======================================================================
+   5. VIEW CONTROLS
+   ====================================================================== */
+
+function resetView(){ state.view = { cx:0, cy:0, upp:0.045 }; }
+
+let panning = false, panStart = null;
+
+cv.addEventListener("pointerdown", e=>{
+  panning = true;
+  cv.setPointerCapture(e.pointerId);
+  const g = frame();
+  panStart = { px:e.clientX, py:e.clientY, cx:state.view.cx, cy:state.view.cy, u:g.u };
+  cv.style.cursor = "grabbing";
+});
+cv.addEventListener("pointermove", e=>{
+  const r = cv.getBoundingClientRect();
+  if(panning && panStart){
+    state.view.cx = panStart.cx - (e.clientX - panStart.px)*panStart.u;
+    state.view.cy = panStart.cy + (e.clientY - panStart.py)*panStart.u;
+  }
+  const g = frame();
+  state.cursor = { x: g.xAt(e.clientX - r.left), y: g.yAt(e.clientY - r.top) };
+  draw();
+});
+const endPan = e=>{
+  panning = false; panStart = null;
+  cv.style.cursor = "crosshair";
+  try{ cv.releasePointerCapture(e.pointerId); }catch(_){}
+};
+cv.addEventListener("pointerup", endPan);
+cv.addEventListener("pointercancel", endPan);
+cv.addEventListener("pointerleave", ()=>{ if(!panning){ state.cursor = null; draw(); } });
+
+cv.addEventListener("wheel", e=>{
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const g = frame();
+  const ax = g.xAt(e.clientX - r.left), ay = g.yAt(e.clientY - r.top);
+  zoomBy(e.deltaY > 0 ? 1.12 : 0.89, ax, ay);
+}, { passive:false });
+
+function zoomBy(k, ax, ay){
+  const u = Math.min(4, Math.max(1e-4, state.view.upp*k));
+  const real = u/state.view.upp;
+  if(ax !== undefined){
+    state.view.cx = ax + (state.view.cx - ax)*real;
+    state.view.cy = ay + (state.view.cy - ay)*real;
+  }
+  state.view.upp = u;
+  draw();
+}
+
+document.querySelectorAll("[data-zoom]").forEach(b=>{
+  b.addEventListener("click", ()=> zoomBy(parseFloat(b.dataset.zoom)));
+});
+document.getElementById("reset").addEventListener("click", ()=>{ resetView(); draw(); });
+const gridBtn = document.getElementById("grid");
+gridBtn.addEventListener("click", ()=>{
+  state.showGrid = !state.showGrid;
+  gridBtn.setAttribute("aria-pressed", String(state.showGrid));
+  gridBtn.textContent = state.showGrid ? "hide grid" : "show grid";
+  draw();
+});
+document.getElementById("add").addEventListener("click", ()=>{ addRow(""); renderRows(); focusLast(); });
+
+let rt;
+window.addEventListener("resize", ()=>{ clearTimeout(rt); rt = setTimeout(draw, 100); });
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+window.addEventListener("beforeprint", draw);
+
+/* ======================================================================
+   6. START
+   ====================================================================== */
+addRow("y = x + 1");
+addRow("y = x^2 + 2");
+renderExamples();
+renderRows();
+recompute();
+</script>
+</body>
+</html>
