@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drag the Number, Move the Graph — AI Karyashala</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cream:#faf6ef;
+  --paper:#fffcf5;
+  --ink:#241d16;
+  --muted:#6c6055;
+  --rule:#e2d8c8;
+  --rust:#b8430a;
+  --rust-soft:#f6e3d6;
+  --teal:#0f7a6c;
+  --teal-soft:#dcefeb;
+  --gold:#c98a10;
+  --gold-soft:#f7ecd2;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--cream);
+  color:var(--ink);
+  font-family:'Inter Tight',system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:radial-gradient(rgba(80,60,40,.13) 1px, transparent 1px);
+  background-size:3px 3px;
+  opacity:.55;
+}
+.wrap{position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:0 24px}
+
+/* ---------- masthead ---------- */
+header.masthead{padding:64px 0 40px; border-bottom:1px solid var(--rule)}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--rust); margin:0 0 14px;
+}
+h1{
+  font-family:'Fraunces',serif; font-weight:600; font-size:clamp(34px,5.4vw,60px);
+  line-height:1.02; margin:0 0 18px; letter-spacing:-.02em; max-width:16ch;
+}
+h1 em{font-style:italic; color:var(--rust)}
+.lede{max-width:60ch; color:var(--muted); font-size:18px; margin:0}
+.how{
+  margin-top:28px; display:flex; flex-wrap:wrap; gap:10px;
+}
+.how span{
+  font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.02em;
+  background:var(--paper); border:1px solid var(--rule); border-radius:999px;
+  padding:7px 13px; color:var(--muted);
+}
+.how span b{color:var(--ink); font-weight:700}
+
+/* ---------- layout ---------- */
+.shell{display:grid; grid-template-columns:180px 1fr; gap:56px; padding:44px 0 0}
+nav.toc{position:sticky; top:28px; align-self:start}
+nav.toc p{
+  font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 14px;
+}
+nav.toc a{
+  display:block; text-decoration:none; color:var(--muted);
+  font-family:'JetBrains Mono',monospace; font-size:12.5px;
+  padding:7px 0 7px 12px; border-left:2px solid var(--rule);
+  transition:color .18s, border-color .18s;
+}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.on{color:var(--rust); border-left-color:var(--rust)}
+
+/* ---------- section ---------- */
+section.topic{padding:14px 0 66px; border-bottom:1px solid var(--rule)}
+section.topic:last-of-type{border-bottom:none}
+.tag{
+  font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.tag i{color:var(--rust); font-style:normal; font-weight:700}
+h2{
+  font-family:'Fraunces',serif; font-weight:600; font-size:clamp(22px,2.6vw,30px);
+  margin:0 0 26px; letter-spacing:-.01em;
+}
+.panel{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); gap:34px; align-items:start}
+
+/* ---------- equation ---------- */
+.eqcard{
+  background:var(--paper); border:1px solid var(--rule); border-radius:10px;
+  padding:26px 24px 20px; box-shadow:0 1px 0 rgba(120,90,60,.06);
+}
+.eq{
+  font-family:'Fraunces',serif; font-size:clamp(30px,4.2vw,42px); font-weight:600;
+  display:flex; align-items:center; flex-wrap:wrap; gap:.18em; line-height:1.25;
+}
+.eq .v{font-style:italic}
+.eq .op{color:var(--muted)}
+.scrub{
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:.82em; font-variant-numeric:tabular-nums;
+  background:var(--rust-soft); color:var(--rust);
+  border:1px solid #e6c3ac; border-bottom-width:3px; border-radius:8px;
+  padding:.08em .34em; margin:0 .04em;
+  cursor:ew-resize; touch-action:none; user-select:none;
+  min-width:1.9em; text-align:center; display:inline-block;
+  transition:background .12s, transform .12s, color .12s;
+}
+.scrub:hover{background:#f0d3c1}
+.scrub:focus-visible{outline:2px solid var(--rust); outline-offset:3px}
+.scrub.live{background:var(--rust); color:#fff; border-color:#8f3407; transform:translateY(-1px)}
+.hint{
+  font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted);
+  margin:16px 0 0; letter-spacing:.02em;
+}
+
+/* sliders */
+.knobs{margin-top:18px; display:grid; gap:12px}
+.knob{display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center}
+.knob label{
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);
+  letter-spacing:.06em;
+}
+.knob output{
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+  color:var(--rust); min-width:3.2em; text-align:right; font-variant-numeric:tabular-nums;
+}
+input[type=range]{
+  -webkit-appearance:none; appearance:none; width:100%; height:22px; background:transparent; cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{height:3px; background:var(--rule); border-radius:2px}
+input[type=range]::-moz-range-track{height:3px; background:var(--rule); border-radius:2px}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+  background:var(--rust); border:2px solid var(--paper); margin-top:-7px;
+  box-shadow:0 1px 3px rgba(0,0,0,.22);
+}
+input[type=range]::-moz-range-thumb{
+  width:16px; height:16px; border-radius:50%; background:var(--rust);
+  border:2px solid var(--paper); box-shadow:0 1px 3px rgba(0,0,0,.22);
+}
+input[type=range]:focus-visible{outline:2px solid var(--rust); outline-offset:4px; border-radius:4px}
+
+.rowbtns{margin-top:18px; display:flex; gap:10px; flex-wrap:wrap}
+button.ghostbtn{
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; letter-spacing:.06em;
+  background:transparent; color:var(--muted); border:1px solid var(--rule);
+  border-radius:6px; padding:7px 12px; cursor:pointer; transition:.15s;
+}
+button.ghostbtn:hover{border-color:var(--rust); color:var(--rust)}
+button.ghostbtn[aria-pressed=true]{background:var(--teal-soft); border-color:var(--teal); color:var(--teal)}
+
+/* facts */
+.facts{margin-top:20px; display:flex; flex-wrap:wrap; gap:8px}
+.fact{
+  font-family:'JetBrains Mono',monospace; font-size:11.5px;
+  background:var(--cream); border:1px solid var(--rule); border-radius:6px;
+  padding:6px 10px; color:var(--muted);
+}
+.fact b{color:var(--ink); font-weight:700}
+
+/* notice */
+.notice{
+  margin-top:22px; border-left:3px solid var(--teal); background:var(--teal-soft);
+  padding:14px 16px; border-radius:0 8px 8px 0;
+}
+.notice h3{
+  font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--teal); margin:0 0 7px; font-weight:700;
+}
+.notice p{margin:0; font-size:14.5px; color:#2a352f}
+.notice p + p{margin-top:8px}
+
+/* ---------- graph ---------- */
+.plot{
+  background:var(--paper); border:1px solid var(--rule); border-radius:10px;
+  padding:12px; box-shadow:0 1px 0 rgba(120,90,60,.06);
+}
+.canvas-wrap{position:relative; width:100%; aspect-ratio:1/1; max-height:420px}
+canvas{width:100%; height:100%; display:block; border-radius:6px; touch-action:pan-y; cursor:crosshair}
+.probe{
+  margin-top:10px; padding:9px 11px; background:var(--cream);
+  border:1px solid var(--rule); border-radius:6px;
+  font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--ink);
+  overflow-x:auto; white-space:nowrap;
+}
+.probe .lbl{color:var(--muted)}
+.legend{display:flex; gap:16px; margin-top:9px; flex-wrap:wrap}
+.legend span{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px}
+.swatch{display:inline-block; width:18px; height:0; border-top:3px solid var(--rust); border-radius:2px; flex:0 0 auto}
+.swatch.old{border-top:2px dashed #a99d8e}
+
+/* ---------- closing ---------- */
+.closing{padding:46px 0 0}
+.taskgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:18px; margin-top:22px}
+.task{
+  background:var(--paper); border:1px solid var(--rule); border-left:3px solid var(--gold);
+  border-radius:0 8px 8px 0; padding:16px 18px;
+}
+.task h4{
+  font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--gold); margin:0 0 8px;
+}
+.task p{margin:0; font-size:14.5px; color:var(--muted)}
+.task p b{color:var(--ink); font-weight:600}
+footer{
+  margin-top:56px; padding:26px 0 40px; border-top:1px solid var(--rule);
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--muted);
+  display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;
+}
+
+/* ---------- responsive ---------- */
+@media(max-width:980px){
+  .shell{grid-template-columns:1fr; gap:0}
+  nav.toc{position:static; margin-bottom:26px; border-bottom:1px solid var(--rule); padding-bottom:16px}
+  nav.toc .links{display:flex; flex-wrap:wrap; gap:8px}
+  nav.toc a{border-left:none; border:1px solid var(--rule); border-radius:999px; padding:6px 12px}
+  nav.toc a.on{border-color:var(--rust)}
+  .panel{grid-template-columns:1fr; gap:22px}
+}
+@media(max-width:520px){
+  .wrap{padding:0 16px}
+  header.masthead{padding:40px 0 28px}
+}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- print ---------- */
+@media print{
+  body{background:#fff}
+  body::before{display:none}
+  nav.toc,.rowbtns,.knobs,.hint{display:none}
+  .shell{grid-template-columns:1fr}
+  section.topic{break-inside:avoid; page-break-inside:avoid}
+  .panel{grid-template-columns:1fr 1fr}
+  .eqcard,.plot,.notice,.task{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">AI Karyashala · Mathematics for Engineers</p>
+  <h1>Drag the number.<br><em>Watch the graph move.</em></h1>
+  <p class="lede">An equation is a rule. A graph is every pair of numbers that obeys the rule. Change one number in the rule and the picture has to change with it — so change it yourself and see exactly what it does.</p>
+  <div class="how">
+    <span><b>Drag</b> any coloured number sideways</span>
+    <span><b>Or</b> use the slider below it</span>
+    <span><b>Arrow keys</b> work too — click a number first</span>
+    <span><b>Move</b> across the graph to read a point</span>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc">
+    <p>On this page</p>
+    <div class="links" id="toclinks"></div>
+  </nav>
+  <main id="sections"></main>
+</div>
+
+<section class="closing">
+  <p class="tag"><i>Wrap-up</i> · take it back to the class</p>
+  <h2>Before you close this page</h2>
+  <div class="taskgrid">
+    <div class="task">
+      <h4>In pairs</h4>
+      <p>One of you sets the numbers without showing the screen. The other only sees the graph and has to <b>say the equation out loud</b>. Swap after three rounds.</p>
+    </div>
+    <div class="task">
+      <h4>Predict, then check</h4>
+      <p>Before every drag, say what will happen: <b>up, down, steeper, flatter, left, right?</b> A prediction you got wrong teaches more than ten you got right.</p>
+    </div>
+    <div class="task">
+      <h4>The odd one out</h4>
+      <p>Four of these five graphs are functions of x. One is not. Find it, and explain to your group <b>what test you used</b>.</p>
+    </div>
+    <div class="task">
+      <h4>Write it down</h4>
+      <p>In one line each: what does the <b>constant</b> do, and what does the <b>coefficient of x</b> do? Keep those two sentences — every curve you meet later obeys them.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>AI Karyashala · Visakhapatnam</span>
+  <span>Works offline · print-friendly</span>
+</footer>
+
+</div>
+
+<script>
+"use strict";
+
+/* ============ number formatting ============ */
+const MINUS = "\u2212";
+function fmt(v){
+  const r = Math.round(v*100)/100;
+  let s = (Number.isInteger(r) ? String(r) : r.toFixed(1));
+  return s.replace("-", MINUS);
+}
+function signed(v){ return (v<0? MINUS : "") + fmt(Math.abs(v)); }
+// roots are usually irrational — say so instead of printing a rounded value as exact
+function rootLabel(name, v){
+  const r = Math.round(v*100)/100;
+  return (Number.isInteger(r) && Math.abs(v - r) < 1e-9)
+    ? `${name} = ±${r}`
+    : `${name} \u2248 ±${r.toFixed(2)}`;
+}
+
+/* ============ section definitions ============ */
+const SECTIONS = [
+  {
+    id:"line",
+    tag:"A line that only slides",
+    title:"y = x + c",
+    kind:"yx",
+    params:{ c:{ base:1, min:-5, max:5, step:1 } },
+    tokens:[ {t:"y", v:1}, {t:"="}, {t:"x", v:1}, {op:"c"} ],
+    f:(x,p)=> x + p.c,
+    sub:(x,p)=> `y = (${fmt(x)}) + (${fmt(p.c)}) = ${fmt(x+p.c)}`,
+    facts:p=>[
+      ["slope","1 (fixed)"],
+      ["crosses y-axis at", `(0, ${fmt(p.c)})`],
+      ["crosses x-axis at", `(${fmt(-p.c)}, 0)`]
+    ],
+    notice:[
+      "The line never tilts. Every value of c slides the whole line straight up or straight down, and the tilt stays exactly the same.",
+      "Look at where the line cuts the y-axis. That height is always c — which is why c is called the y-intercept."
+    ]
+  },
+  {
+    id:"slope",
+    tag:"Two knobs, two different jobs",
+    title:"y = m·x + c",
+    kind:"yx",
+    params:{ m:{ base:2, min:-5, max:5, step:0.5 }, c:{ base:5, min:-5, max:5, step:1 } },
+    tokens:[ {t:"y", v:1}, {t:"="}, {p:"m"}, {t:"·"}, {t:"x", v:1}, {op:"c"} ],
+    f:(x,p)=> p.m*x + p.c,
+    sub:(x,p)=> `y = ${fmt(p.m)}·(${fmt(x)}) + (${fmt(p.c)}) = ${fmt(p.m*x+p.c)}`,
+    facts:p=>[
+      ["slope", fmt(p.m)],
+      ["crosses y-axis at", `(0, ${fmt(p.c)})`],
+      ["crosses x-axis at", p.m===0 ? "nowhere — the line is flat" : `(${fmt(-p.c/p.m)}, 0)`]
+    ],
+    notice:[
+      "Drag m and the line pivots around the point (0, c). Drag c and the line slides without ever changing its tilt. m tilts, c lifts — that is the whole story of a straight line.",
+      "Set m to 0. The rule becomes y = c: whatever x you pick, y refuses to change. Now set m negative and describe what a hill going downhill looks like."
+    ]
+  },
+  {
+    id:"parab",
+    tag:"A curve that lifts and drops",
+    title:"y = x·x + c",
+    kind:"yx",
+    params:{ c:{ base:2, min:-5, max:5, step:1 } },
+    tokens:[ {t:"y", v:1}, {t:"="}, {t:"x", v:1}, {t:"·"}, {t:"x", v:1}, {op:"c"} ],
+    f:(x,p)=> x*x + p.c,
+    sub:(x,p)=> `y = (${fmt(x)})² + (${fmt(p.c)}) = ${fmt(x*x+p.c)}`,
+    facts:p=>[
+      ["lowest point", `(0, ${fmt(p.c)})`],
+      ["opens","upward"],
+      ["touches x-axis at", p.c>0 ? "nowhere" : (p.c===0 ? "(0, 0) — just once" : rootLabel("x", Math.sqrt(-p.c)))]
+    ],
+    notice:[
+      "The shape never changes — the same U just rides up and down. c is the height of its lowest point, the vertex.",
+      "Push c above 0 and the curve lifts clear of the x-axis: x·x + c = 0 now has no real answer. The graph is telling you something the algebra would take a page to say."
+    ]
+  },
+  {
+    id:"sideways",
+    tag:"The same curve, lying on its side",
+    title:"x = y·y + c",
+    kind:"xy",
+    params:{ c:{ base:2, min:-5, max:5, step:1 } },
+    tokens:[ {t:"x", v:1}, {t:"="}, {t:"y", v:1}, {t:"·"}, {t:"y", v:1}, {op:"c"} ],
+    f:(y,p)=> y*y + p.c,
+    sub:(y,p)=> `x = (${fmt(y)})² + (${fmt(p.c)}) = ${fmt(y*y+p.c)}`,
+    facts:p=>[
+      ["leftmost point", `(${fmt(p.c)}, 0)`],
+      ["opens","to the right"],
+      ["crosses y-axis at", p.c>0 ? "nowhere" : (p.c===0 ? "(0, 0) — just once" : rootLabel("y", Math.sqrt(-p.c)))]
+    ],
+    notice:[
+      "Here y is the input and x is the output, so c now shifts the curve sideways instead of up and down. Nothing else changed — only which letter you feed in.",
+      "Draw a vertical line anywhere on the right of this curve: it hits the graph twice. One x, two y values. That is why this is not a function of x, even though it is a perfectly good equation."
+    ]
+  },
+  {
+    id:"sum",
+    tag:"When x and y share the work",
+    title:"x + y = c",
+    kind:"yx",
+    params:{ c:{ base:3, min:-5, max:5, step:1 } },
+    tokens:[ {t:"x", v:1}, {t:"+"}, {t:"y", v:1}, {t:"="}, {p:"c"} ],
+    f:(x,p)=> p.c - x,
+    sub:(x,p)=> `y = ${fmt(p.c)} ${MINUS} (${fmt(x)}) = ${fmt(p.c-x)}`,
+    facts:p=>[
+      ["rearranged", `y = ${fmt(p.c)} ${MINUS} x`],
+      ["slope", MINUS+"1 (fixed)"],
+      ["both intercepts", p.c===0 ? "the line goes through (0, 0)" : `(${fmt(p.c)}, 0) and (0, ${fmt(p.c)})`]
+    ],
+    notice:[
+      "This one hides its shape until you rearrange it: y = c − x. Now it is an ordinary line, tilting downward, and c slides it diagonally.",
+      "Every point on this line is a pair of numbers that adds up to c. Put your finger anywhere on the line and add the two coordinates — you will get c every time."
+    ]
+  }
+];
+
+/* ============ viewing window per section ============ */
+/* Lines get an equal-scale square window so a slope of 1 really looks like 45°.
+   The parabolas get a taller (and, sideways, a wider) window — in a ±10 box,
+   x·x shoots off the top by x = 3 and reads as a spike instead of a curve. */
+const VIEWS = {
+  line:     { x:[-9,  9], y:[-9,  9], equal:true },
+  slope:    { x:[-9,  9], y:[-9,  9], equal:true },
+  parab:    { x:[-6,  6], y:[-6, 14] },
+  sideways: { x:[-6, 14], y:[-6,  6] },
+  sum:      { x:[-9,  9], y:[-9,  9], equal:true }
+};
+SECTIONS.forEach(s=>{ s.view = VIEWS[s.id]; });
+
+/* ============ page build ============ */
+const sectionsEl = document.getElementById("sections");
+const tocEl = document.getElementById("toclinks");
+
+SECTIONS.forEach((sec, i)=>{
+  sec.n = String(i+1).padStart(2,"0");
+  sec.p = {};
+  Object.keys(sec.params).forEach(k=> sec.p[k] = sec.params[k].base);
+  sec.showOld = true;
+  sec.probe = 2;
+
+  const a = document.createElement("a");
+  a.href = "#" + sec.id;
+  a.textContent = sec.n + " · " + sec.title.replace(/·/g,"");
+  a.dataset.for = sec.id;
+  tocEl.appendChild(a);
+
+  const el = document.createElement("section");
+  el.className = "topic";
+  el.id = sec.id;
+  el.innerHTML = `
+    <p class="tag"><i>${sec.n}</i> · ${sec.tag}</p>
+    <h2>${sec.title}</h2>
+    <div class="panel">
+      <div class="left">
+        <div class="eqcard">
+          <div class="eq" data-eq></div>
+          <p class="hint">Drag a coloured number left or right</p>
+          <div class="knobs" data-knobs></div>
+          <div class="rowbtns">
+            <button class="ghostbtn" data-reset>Reset to start</button>
+            <button class="ghostbtn" data-old aria-pressed="true">Hide starting curve</button>
+          </div>
+        </div>
+        <div class="facts" data-facts></div>
+        <div class="notice">
+          <h3>What to notice</h3>
+          ${sec.notice.map(t=>`<p>${t}</p>`).join("")}
+        </div>
+      </div>
+      <div class="plot">
+        <div class="canvas-wrap"><canvas></canvas></div>
+        <div class="probe" data-probe></div>
+        <div class="legend">
+          <span><i class="swatch"></i> now</span>
+          <span><i class="swatch old"></i> where it started</span>
+          <span>each grid square = 1 unit</span>
+        </div>
+      </div>
+    </div>`;
+  sectionsEl.appendChild(el);
+
+  sec.el = el;
+  sec.canvas = el.querySelector("canvas");
+  sec.eqEl = el.querySelector("[data-eq]");
+  sec.factsEl = el.querySelector("[data-facts]");
+  sec.probeEl = el.querySelector("[data-probe]");
+  sec.knobsEl = el.querySelector("[data-knobs]");
+
+  buildEquation(sec);
+  buildKnobs(sec);
+
+  el.querySelector("[data-reset]").addEventListener("click", ()=>{
+    Object.keys(sec.params).forEach(k=> sec.p[k] = sec.params[k].base);
+    update(sec);
+  });
+  const oldBtn = el.querySelector("[data-old]");
+  oldBtn.addEventListener("click", ()=>{
+    sec.showOld = !sec.showOld;
+    oldBtn.setAttribute("aria-pressed", String(sec.showOld));
+    oldBtn.textContent = sec.showOld ? "Hide starting curve" : "Show starting curve";
+    draw(sec);
+  });
+
+  attachProbe(sec);
+  update(sec);
+});
+
+/* ============ equation rendering ============ */
+function buildEquation(sec){
+  sec.eqEl.innerHTML = "";
+  sec.chips = {};
+  sec.ops = {};
+  sec.tokens.forEach(tok=>{
+    if(tok.t !== undefined){
+      const s = document.createElement("span");
+      s.className = tok.v ? "v" : "op";
+      s.textContent = tok.t;
+      sec.eqEl.appendChild(s);
+      return;
+    }
+    const key = tok.p || tok.op;
+    if(tok.op){
+      const o = document.createElement("span");
+      o.className = "op";
+      o.textContent = "+";
+      sec.eqEl.appendChild(o);
+      sec.ops[key] = o;
+    }
+    const chip = document.createElement("span");
+    chip.className = "scrub";
+    chip.tabIndex = 0;
+    chip.setAttribute("role","slider");
+    chip.setAttribute("aria-label", key + " — drag or use arrow keys");
+    chip.setAttribute("aria-valuemin", sec.params[key].min);
+    chip.setAttribute("aria-valuemax", sec.params[key].max);
+    sec.eqEl.appendChild(chip);
+    sec.chips[key] = chip;
+    attachScrub(sec, key, chip);
+  });
+}
+
+function attachScrub(sec, key, chip){
+  const spec = sec.params[key];
+  const PX = 26;
+  let dragging=false, startX=0, startVal=0;
+
+  chip.addEventListener("pointerdown", e=>{
+    dragging=true;
+    startX=e.clientX; startVal=sec.p[key];
+    chip.setPointerCapture(e.pointerId);
+    chip.classList.add("live");
+    e.preventDefault();
+  });
+  chip.addEventListener("pointermove", e=>{
+    if(!dragging) return;
+    const steps = Math.round((e.clientX - startX)/PX);
+    setVal(sec, key, startVal + steps*spec.step);
+  });
+  const stop = e=>{
+    if(!dragging) return;
+    dragging=false;
+    chip.classList.remove("live");
+    try{ chip.releasePointerCapture(e.pointerId); }catch(_){}
+  };
+  chip.addEventListener("pointerup", stop);
+  chip.addEventListener("pointercancel", stop);
+
+  chip.addEventListener("keydown", e=>{
+    const d = (e.key==="ArrowRight"||e.key==="ArrowUp") ? 1
+            : (e.key==="ArrowLeft"||e.key==="ArrowDown") ? -1 : 0;
+    if(!d) return;
+    e.preventDefault();
+    setVal(sec, key, sec.p[key] + d*spec.step);
+  });
+}
+
+function setVal(sec, key, v){
+  const spec = sec.params[key];
+  v = Math.min(spec.max, Math.max(spec.min, Math.round(v/spec.step)*spec.step));
+  if(v === sec.p[key]) return;
+  sec.p[key] = v;
+  update(sec);
+}
+
+/* ============ sliders ============ */
+function buildKnobs(sec){
+  sec.knobs = {};
+  Object.keys(sec.params).forEach(key=>{
+    const spec = sec.params[key];
+    const row = document.createElement("div");
+    row.className = "knob";
+    row.innerHTML = `<label for="${sec.id}-${key}">${key}</label>
+      <input type="range" id="${sec.id}-${key}" min="${spec.min}" max="${spec.max}" step="${spec.step}">
+      <output></output>`;
+    sec.knobsEl.appendChild(row);
+    const input = row.querySelector("input");
+    input.addEventListener("input", ()=> setVal(sec, key, parseFloat(input.value)));
+    sec.knobs[key] = { input, out: row.querySelector("output") };
+  });
+}
+
+/* ============ update ============ */
+function update(sec){
+  Object.keys(sec.params).forEach(key=>{
+    const v = sec.p[key];
+    const chip = sec.chips[key];
+    chip.textContent = signed(v);
+    chip.setAttribute("aria-valuenow", v);
+    chip.setAttribute("aria-valuetext", fmt(v));
+    if(sec.ops[key]) sec.ops[key].style.display = (v<0) ? "none" : "";
+    sec.knobs[key].input.value = v;
+    sec.knobs[key].out.textContent = signed(v);
+  });
+  sec.factsEl.innerHTML = sec.facts(sec.p)
+    .map(([k,v])=>`<span class="fact">${k} <b>${v}</b></span>`).join("");
+  draw(sec);
+}
+
+/* ============ plotting ============ */
+function frame(sec){
+  const cv = sec.canvas;
+  const rect = cv.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+  const dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(w*dpr), ph = Math.round(h*dpr);
+  if(cv.width !== pw || cv.height !== ph){ cv.width = pw; cv.height = ph; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  let [x0,x1] = sec.view.x, [y0,y1] = sec.view.y;
+  if(sec.view.equal){
+    // one unit must measure the same in both directions, or a slope of 1
+    // stops looking like 45°. Widen the shorter side to fit the canvas.
+    const per = Math.min(w/(x1-x0), h/(y1-y0));
+    const mx = (x0+x1)/2, my = (y0+y1)/2;
+    x0 = mx - (w/per)/2; x1 = mx + (w/per)/2;
+    y0 = my - (h/per)/2; y1 = my + (h/per)/2;
+  }
+  const sx = w/(x1-x0), sy = h/(y1-y0);
+  return {
+    ctx, w, h, x0, x1, y0, y1, sx, sy,
+    X:x => (x-x0)*sx,
+    Y:y => h - (y-y0)*sy,
+    xAt:px => x0 + px/sx,
+    yAt:py => y0 + (h-py)/sy
+  };
+}
+
+function tickStep(range){ return range > 16 ? 4 : (range > 9 ? 2 : 1); }
+
+function haloText(ctx, text, x, y){
+  ctx.strokeStyle = "#fffcf5";
+  ctx.lineWidth = 3;
+  ctx.lineJoin = "round";
+  ctx.strokeText(text, x, y);
+  ctx.fillText(text, x, y);
+}
+
+function drawCurve(g, sec, params, color, dash, width){
+  const ctx = g.ctx;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0,0,g.w,g.h);
+  ctx.clip();
+  ctx.setLineDash(dash);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  let started = false;
+  const LIMIT = 8000;
+  if(sec.kind === "yx"){
+    for(let px=0; px<=g.w; px++){
+      const y = sec.f(g.xAt(px), params);
+      if(!isFinite(y)){ started=false; continue; }
+      const py = g.Y(y);
+      if(py < -LIMIT || py > LIMIT){ started=false; continue; }
+      started ? ctx.lineTo(px,py) : (ctx.moveTo(px,py), started=true);
+    }
+  }else{
+    for(let py=0; py<=g.h; py++){
+      const x = sec.f(g.yAt(py), params);
+      if(!isFinite(x)){ started=false; continue; }
+      const px = g.X(x);
+      if(px < -LIMIT || px > LIMIT){ started=false; continue; }
+      started ? ctx.lineTo(px,py) : (ctx.moveTo(px,py), started=true);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw(sec){
+  const g = frame(sec);
+  const {ctx,w,h} = g;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = "#fffcf5";
+  ctx.fillRect(0,0,w,h);
+
+  const xF = Math.ceil(g.x0), xT = Math.floor(g.x1);
+  const yF = Math.ceil(g.y0), yT = Math.floor(g.y1);
+  const stepX = tickStep(g.x1-g.x0), stepY = tickStep(g.y1-g.y0);
+
+  // one grid square = one unit on each axis
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#efe6d6";
+  ctx.beginPath();
+  for(let x=xF; x<=xT; x++){ const px = Math.round(g.X(x))+.5; ctx.moveTo(px,0); ctx.lineTo(px,h); }
+  for(let y=yF; y<=yT; y++){ const py = Math.round(g.Y(y))+.5; ctx.moveTo(0,py); ctx.lineTo(w,py); }
+  ctx.stroke();
+
+  ctx.strokeStyle = "#e2d5bf";
+  ctx.beginPath();
+  for(let x=xF; x<=xT; x++){ if(x%stepX) continue; const px = Math.round(g.X(x))+.5; ctx.moveTo(px,0); ctx.lineTo(px,h); }
+  for(let y=yF; y<=yT; y++){ if(y%stepY) continue; const py = Math.round(g.Y(y))+.5; ctx.moveTo(0,py); ctx.lineTo(w,py); }
+  ctx.stroke();
+
+  // axes
+  const axisY = Math.round(g.Y(0))+.5, axisX = Math.round(g.X(0))+.5;
+  ctx.strokeStyle = "#8d8272";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, axisY); ctx.lineTo(w, axisY);
+  ctx.moveTo(axisX, 0); ctx.lineTo(axisX, h);
+  ctx.stroke();
+
+  // tick numbers, with a paper-coloured halo so the curve never buries them
+  ctx.fillStyle = "#8a7f6f";
+  ctx.font = "500 10px 'JetBrains Mono', monospace";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for(let x=xF; x<=xT; x++){
+    if(x===0 || x%stepX) continue;
+    const px = g.X(x);
+    if(px < 14 || px > w-22) continue;
+    haloText(ctx, String(x).replace("-",MINUS), px, Math.min(h-13, g.Y(0)+5));
+  }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for(let y=yF; y<=yT; y++){
+    if(y===0 || y%stepY) continue;
+    const py = g.Y(y);
+    if(py < 20 || py > h-8) continue;
+    haloText(ctx, String(y).replace("-",MINUS), Math.max(22, g.X(0)-6), py);
+  }
+  ctx.fillStyle = "#6c6055";
+  ctx.font = "600 11px 'JetBrains Mono', monospace";
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  haloText(ctx, "y", Math.min(w-14, g.X(0)+6), 6);
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+  haloText(ctx, "x", w-6, Math.max(14, g.Y(0)-5));
+
+  // where it started
+  const base = {};
+  Object.keys(sec.params).forEach(k=> base[k] = sec.params[k].base);
+  const same = Object.keys(base).every(k=> base[k]===sec.p[k]);
+  if(sec.showOld && !same) drawCurve(g, sec, base, "#a99d8e", [5,5], 2);
+
+  // where it is now
+  drawCurve(g, sec, sec.p, "#b8430a", [], 3);
+
+  // probe point
+  let a, b;
+  if(sec.kind === "yx"){ a = sec.probe; b = sec.f(a, sec.p); }
+  else { b = sec.probe; a = sec.f(b, sec.p); }
+  if(isFinite(a) && isFinite(b)){
+    const px = g.X(a), py = g.Y(b);
+    const onScreen = px>=0 && px<=w && py>=0 && py<=h;
+    if(onScreen){
+      ctx.save();
+      ctx.setLineDash([3,4]);
+      ctx.strokeStyle = "#0f7a6c";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(px, g.Y(0)); ctx.lineTo(px, py);
+      ctx.moveTo(g.X(0), py); ctx.lineTo(px, py);
+      ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI*2);
+      ctx.fillStyle = "#0f7a6c";
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#fffcf5";
+      ctx.stroke();
+    }
+  }
+
+  const t = sec.probe;
+  const off = isFinite(b) && (sec.kind==="yx" ? (b<g.y0 || b>g.y1) : (a<g.x0 || a>g.x1))
+    ? ' <span class="lbl">(off the top of this window)</span>' : "";
+  sec.probeEl.innerHTML = (sec.kind === "yx"
+    ? `<span class="lbl">at x = ${fmt(t)} &rarr;</span> ${sec.sub(t, sec.p)}`
+    : `<span class="lbl">at y = ${fmt(t)} &rarr;</span> ${sec.sub(t, sec.p)}`) + off;
+}
+
+/* ============ probe interaction ============ */
+function attachProbe(sec){
+  const cv = sec.canvas;
+  let dragging = false;
+  const move = e=>{
+    const r = cv.getBoundingClientRect();
+    const g = frame(sec);
+    const val = sec.kind === "yx"
+      ? g.xAt(e.clientX - r.left)
+      : g.yAt(e.clientY - r.top);
+    sec.probe = Math.round(val*2)/2;
+    draw(sec);
+  };
+  cv.addEventListener("pointermove", e=>{
+    if(e.pointerType === "mouse" || dragging) move(e);
+  });
+  cv.addEventListener("pointerdown", e=>{
+    dragging = true;
+    cv.setPointerCapture(e.pointerId);
+    move(e);
+  });
+  const stop = e=>{
+    dragging = false;
+    try{ cv.releasePointerCapture(e.pointerId); }catch(_){}
+  };
+  cv.addEventListener("pointerup", stop);
+  cv.addEventListener("pointercancel", stop);
+}
+
+/* ============ resize + toc ============ */
+let rt;
+window.addEventListener("resize", ()=>{
+  clearTimeout(rt);
+  rt = setTimeout(()=> SECTIONS.forEach(draw), 120);
+});
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(()=> SECTIONS.forEach(draw));
+}
+
+const links = [...tocEl.querySelectorAll("a")];
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(!en.isIntersecting) return;
+    links.forEach(l=> l.classList.toggle("on", l.dataset.for === en.target.id));
+  });
+}, { rootMargin:"-25% 0px -60% 0px" });
+SECTIONS.forEach(s=> obs.observe(s.el));
+
+window.addEventListener("beforeprint", ()=> SECTIONS.forEach(draw));
+</script>
+</body>
+</html>
