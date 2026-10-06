@@ -190,6 +190,9 @@ body.ready .md{opacity:1;}
 body.worksheet .md td:first-child{white-space:nowrap;}
 body.worksheet .md td:last-child{white-space:normal;}
 
+/* figures: never wider than the column */
+.md img{display:block; max-width:100%; height:auto; margin:1.25rem auto .5rem;}
+
 /* horizontal rules between sections; the centre mark shows the page kind */
 .md hr{
   border:0; height:1px; background:var(--rule);
