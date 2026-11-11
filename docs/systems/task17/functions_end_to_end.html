@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Function End to End</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a lesson player. Lesson list on the left; on the right a stage diagram,
+   the Python that drives it, its output, and a step table that plays in sync. */
+:root{
+  --paper:#f2f5f1; --panel:#ffffff; --ink:#14262b; --muted:#5a6c6f; --line:#cfd9d4;
+  --accent:#d97706; --accent-soft:#fdebcf; --blue:#1c6e8c; --blue-soft:#e1f0f5;
+  --good:#2e7d4f; --bad:#c0392b; --bad-soft:#fbe6e2; --code:#eef2ee;
+  --display:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0f1b1e; --panel:#16272a; --ink:#e6efec; --muted:#93a8a7; --line:#2b4043;
+    --accent:#f2a33a; --accent-soft:#4a3410; --blue:#62b8d6; --blue-soft:#143540;
+    --good:#6fcf97; --bad:#f0776a; --bad-soft:#47201c; --code:#11201f; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0f1b1e; --panel:#16272a; --ink:#e6efec; --muted:#93a8a7; --line:#2b4043;
+  --accent:#f2a33a; --accent-soft:#4a3410; --blue:#62b8d6; --blue-soft:#143540;
+  --good:#6fcf97; --bad:#f0776a; --bad-soft:#47201c; --code:#11201f; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:16px/1.5 var(--body);
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:32px 32px;background-attachment:fixed}
+body::before{content:"";position:fixed;inset:0;background:var(--paper);opacity:.86;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:20px;display:grid;grid-template-columns:236px minmax(0,1fr);gap:24px}
+.bar{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.bar b{font:700 22px/1.1 var(--display);letter-spacing:-.01em}
+.bar span{font:500 12px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+nav{position:sticky;top:16px;align-self:start;display:flex;flex-direction:column;gap:16px;max-height:calc(100vh - 32px);overflow:auto;padding-right:4px}
+.grp h2{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.grp{display:flex;flex-direction:column;gap:2px}
+nav button{all:unset;cursor:pointer;padding:6px 10px;border-radius:6px;font:500 14.5px var(--body);border-left:3px solid transparent}
+nav button:hover{background:var(--panel)}
+nav button[aria-current="true"]{background:var(--panel);border-left-color:var(--accent);font-weight:600}
+button:focus-visible,select:focus-visible,a:focus-visible,tr:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{display:flex;flex-direction:column;gap:18px;min-width:0}
+.kick{font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+h1{font:700 clamp(28px,4vw,40px)/1.05 var(--display);letter-spacing:-.02em;margin:4px 0 8px;text-wrap:balance}
+.blurb{max-width:65ch;margin:0;color:var(--muted)}
+.row{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px}
+.panel{background:var(--panel);border:1.5px solid var(--ink);border-radius:10px;min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 14px;border-bottom:1.5px solid var(--ink);font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.stagewrap{overflow-x:auto}
+svg#stage{display:block;width:100%;min-width:620px;height:auto}
+.say{margin:0;padding:12px 14px;border-top:1.5px solid var(--ink);min-height:4.2em;font-size:15.5px}
+.say b{color:var(--accent)}
+dl{margin:0;padding:6px 14px 12px}
+dl div{display:grid;grid-template-columns:104px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+dl div:last-child{border:0}
+dt{font:600 11px/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dd{margin:0}
+code,.c{font-family:var(--mono);font-size:.92em}
+dd code{background:var(--code);padding:1px 5px;border-radius:4px}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ctl button,.ctl select{font:600 13px var(--mono);letter-spacing:.04em;padding:8px 14px;border:1.5px solid var(--ink);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer}
+.ctl button.pri{background:var(--ink);color:var(--paper);min-width:96px}
+.ctl button:disabled{opacity:.4;cursor:default}
+.ctl .prog{font:500 13px var(--mono);color:var(--muted);margin:0 6px;font-variant-numeric:tabular-nums}
+.ctl .next{margin-left:auto}
+pre{margin:0;padding:10px 0;overflow-x:auto;font:14px/1.75 var(--mono);background:var(--code);border-radius:0 0 8px 8px}
+.ln{display:block;padding:0 14px 0 0;border-left:3px solid transparent;white-space:pre;min-width:max-content}
+.ln i{display:inline-block;width:38px;text-align:right;margin-right:14px;color:var(--muted);font-style:normal;opacity:.7;user-select:none}
+.ln.on{background:var(--accent-soft);border-left-color:var(--accent)}
+.k{color:var(--blue);font-weight:600}.s{color:var(--good)}.m{color:var(--muted);font-style:italic}.n{color:var(--accent)}
+#out{min-height:120px;white-space:pre-wrap;padding:12px 14px}
+#out .new{background:var(--accent-soft);border-radius:3px}
+#out em{color:var(--muted);font-family:var(--body);font-style:normal}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 14px}
+td{padding:7px 14px;border-top:1px solid var(--line);vertical-align:top}
+td:first-child,td:nth-child(2){font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td:last-child{font-family:var(--mono);white-space:pre-wrap}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--code)}
+tbody tr.on{background:var(--accent-soft)}
+tbody tr.done td:first-child{color:var(--good)}
+.ex ul{list-style:none;margin:0;padding:6px 14px 12px}
+.ex li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.ex li:last-child{border:0}
+.ex input{width:17px;height:17px;margin-top:3px;accent-color:var(--accent)}
+.ex a{color:var(--blue);font-weight:600;white-space:nowrap}
+/* stage */
+.lbl{font:600 11px var(--mono);letter-spacing:.12em;fill:var(--muted)}
+.tok rect{fill:var(--panel);stroke:var(--ink);stroke-width:1.5}
+.tok text{font:500 15px var(--mono);fill:var(--ink)}
+.tok.used{opacity:.3}
+.tok.out rect{fill:var(--accent-soft);stroke:var(--accent)}
+.tok.live rect{stroke:var(--accent);stroke-width:2.6}
+.tok.ghost rect{fill:none;stroke:var(--bad);stroke-dasharray:4 4}
+.tok.ghost text{fill:var(--bad)}
+.mach rect{fill:var(--blue-soft);stroke:var(--blue);stroke-width:2}
+.mach.hot rect{fill:var(--accent-soft);stroke:var(--accent)}
+.mach .f{font:600 17px var(--mono);fill:var(--ink)}
+.mach .big{font:700 34px var(--display);fill:var(--ink)}
+.mach .e{font:500 14px var(--mono);fill:var(--muted)}
+.arrow{stroke:var(--muted);stroke-width:1.5;fill:none;stroke-dasharray:3 5}
+.edge{stroke:var(--muted);stroke-width:1.6;stroke-dasharray:6 6;opacity:.7}
+.node>rect{fill:var(--panel);stroke:var(--ink);stroke-width:1.6}
+.node.good>rect{stroke:var(--good);stroke-width:2.4}
+.node.bad>rect{stroke:var(--bad);fill:var(--bad-soft);stroke-width:2.4}
+.node.hot>rect{stroke:var(--accent);fill:var(--accent-soft);stroke-width:2.4}
+.node.ghost>rect{stroke-dasharray:6 6;fill:none}
+.node.ghost .t,.node.ghost .u{opacity:.45}
+.node .t{font:600 15px var(--body);fill:var(--ink)}
+.node .u{font:500 11.5px var(--mono);fill:var(--muted)}
+.badge rect{fill:var(--ink)}
+.badge text{font:600 11.5px var(--mono);fill:var(--paper)}
+.dot{fill:none;stroke:var(--muted);stroke-width:1.2}
+.dot.on{fill:var(--blue);stroke:var(--blue)}
+.over{font:600 12px var(--mono);fill:var(--bad)}
+.pk rect{fill:var(--accent)}
+.pk text{font:600 12px var(--mono);fill:#1a1206}
+.pk.bad rect{fill:var(--bad)}
+.pk.bad text{fill:#fff}
+@media (max-width:920px){
+  .app{grid-template-columns:minmax(0,1fr);padding:16px}
+  nav{position:static;flex-direction:row;max-height:none;overflow-x:auto;padding-bottom:6px}
+  .grp{flex:none}
+  .row{grid-template-columns:minmax(0,1fr)}
+  .ctl .next{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar"><b>Function, end to end</b><span>Class of 9 Nov 2026 · every idea played out in Python</span></header>
+  <nav id="nav" aria-label="Lessons"></nav>
+  <main>
+    <section>
+      <div class="kick" id="kick"></div>
+      <h1 id="title"></h1>
+      <p class="blurb" id="blurb"></p>
+    </section>
+    <div class="row">
+      <div class="panel">
+        <div class="ph"><span>Stage</span><span id="prog2"></span></div>
+        <div class="stagewrap"><svg id="stage" viewBox="0 0 800 380" role="img" aria-label="Animated diagram of the current lesson"></svg></div>
+        <p class="say" id="say" aria-live="polite"></p>
+      </div>
+      <div class="panel">
+        <div class="ph"><span>In short</span></div>
+        <dl id="facts"></dl>
+      </div>
+    </div>
+    <div class="ctl">
+      <button id="bPlay" class="pri" type="button">Play</button>
+      <button id="bBack" type="button">Back</button>
+      <button id="bStep" type="button">Step</button>
+      <button id="bReset" type="button">Restart</button>
+      <label class="prog" for="speed">Speed</label>
+      <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      <span class="prog" id="prog"></span>
+      <button id="bNext" class="next" type="button">Next lesson →</button>
+    </div>
+    <div class="row">
+      <div class="panel"><div class="ph"><span>Python</span><span id="fname"></span></div><pre id="code"></pre></div>
+      <div class="panel"><div class="ph"><span>Output</span></div><div id="out" class="c"></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span>Step by step</span><span>click a row to jump</span></div>
+      <div class="tw"><table><thead><tr><th>No.</th><th>Line</th><th>What happens</th><th>Prints</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+    <div class="panel ex">
+      <div class="ph"><span>Practice assigned in class</span></div>
+      <ul id="ex"></ul>
+    </div>
+  </main>
+</div>
+<script>
+/* ---------- lesson data ---------- */
+const items=(r,n,line,say)=>Array.from({length:n},(_,i)=>({r,i,line,say:say(i)}));
+const marks=[35,48,62,71,90], word=['V','i','z','a','g'], codes=[86,105,122,97,103];
+const three=['client','guard','server'];
+function chain(mid,midSub,client){return{
+  nodes:[{id:'c',x:110,y:190,label:'client',sub:client||''},{id:'m',x:390,y:190,label:mid,sub:midSub,w:180},{id:'s',x:670,y:190,label:'server',sub:''}],
+  edges:[['c','m'],['m','s']]};}
+
+const LESSONS=[
+{id:'higher-order',topic:'1 · Working with functions',title:'Higher-order functions',file:'apply.py',
+ blurb:'A higher-order function takes another function as one of its inputs. The same value gives a different answer depending on which function you hand over.',
+ facts:[['Idea','A function is a value. You can pass it as an argument, like a number or a string.'],['Not only Python','JavaScript, Go, C (function pointers) and most other languages allow the same thing.'],['Watch for','<code>len</code> is passed without brackets. <code>len()</code> would call it; <code>len</code> hands it over.']],
+ code:`def apply(fn, value):
+    return fn(value)
+
+print(apply(len, "vizag"))
+print(apply(str.upper, "vizag"))
+print(apply(lambda s: s[::-1], "vizag"))`,
+ scene:'pipe',cap:'apply(fn, value)',
+ rounds:[{fns:['len','str.upper','lambda s: s[::-1]'],ins:["'vizag'","'vizag'","'vizag'"],outs:['5',"'VIZAG'","'gaziv'"]}],
+ steps:[{r:0,i:0,line:[1,2,4],out:'5',say:'<b>len</b> is handed to apply as fn. Inside, fn("vizag") runs len and counts 5 letters.'},
+        {r:0,i:1,line:[1,2,5],out:'VIZAG',say:'Same apply, same value, different function. <b>str.upper</b> returns the capitals.'},
+        {r:0,i:2,line:[1,2,6],out:'gaziv',say:'A <b>lambda</b> written on the spot is passed in. It reverses the string.'}]},
+
+{id:'map',topic:'1 · Working with functions',title:'map',file:'map_demo.py',
+ blurb:'map runs one function on every item of a list, one at a time, and gives back the results in the same order.',
+ facts:[['Takes','A function and a list (any iterable).'],['Gives','One result per item. Five in, five out.'],['In Python 3','<code>map</code> is lazy. Wrap it in <code>list()</code> to see the values.']],
+ code:`marks = [35, 48, 62, 71, 90]
+
+def add_grace(m):
+    return m + 5
+
+result = list(map(add_grace, marks))
+print(result)`,
+ scene:'pipe',cap:'map(fn, marks)',
+ rounds:[{fn:'add_grace',ins:marks,outs:marks.map(m=>m+5)}],
+ steps:[...items(0,5,[3,4,6],i=>`add_grace(${marks[i]}) returns <b>${marks[i]+5}</b>.`),
+        {r:0,i:4,line:7,out:'[40, 53, 67, 76, 95]',say:'Every student got 5 grace marks. The original marks list is unchanged.'}]},
+
+{id:'filter',topic:'1 · Working with functions',title:'filter',file:'filter_demo.py',
+ blurb:'filter asks a function a yes or no question about every item and keeps only the items that get a yes.',
+ facts:[['Takes','A function that returns True or False, and a list.'],['Gives','The same items, fewer of them. Nothing is changed, only kept or dropped.'],['Here','The question is written inline as a lambda: is the mark 50 or more?']],
+ code:`marks = [35, 48, 62, 71, 90]
+
+passed = list(filter(lambda m: m >= 50, marks))
+print(passed)`,
+ scene:'pipe',cap:'filter(fn, marks)',
+ rounds:[{fn:'lambda m: m >= 50',ins:marks,outs:marks.map(m=>m>=50?m:null)}],
+ steps:[...items(0,5,3,i=>marks[i]>=50?`${marks[i]} >= 50 is <b>True</b>. Kept.`:`${marks[i]} >= 50 is <b>False</b>. Dropped.`),
+        {r:0,i:4,line:4,out:'[62, 71, 90]',say:'Three of five passed. filter never edits an item, it only decides who stays.'}]},
+
+{id:'lambda',topic:'1 · Working with functions',title:'lambda, the anonymous function',file:'lambda_demo.py',
+ blurb:'A lambda is a small function with no name, written right where it is used. It does the same job as a short def.',
+ facts:[['Shape','<code>lambda inputs: one expression</code>. The expression is the return value.'],['Use it when','The function is one line and needed once, usually inside map, filter or reduce.'],['Use def when','The logic needs a name, several lines, or reuse.']],
+ code:`def square(x):
+    return x * x
+
+nums = [1, 2, 3, 4]
+print(list(map(square, nums)))
+print(list(map(lambda x: x * x, nums)))`,
+ scene:'pipe',cap:'map(fn, nums)',
+ rounds:[{fn:'square',ins:[1,2,3,4],outs:[1,4,9,16]},{fn:'lambda x: x * x',ins:[1,2,3,4],outs:[1,4,9,16]}],
+ steps:[...items(0,4,[1,2,5],i=>`The named function square(${i+1}) returns <b>${(i+1)*(i+1)}</b>.`).map((s,i)=>i==3?{...s,out:'[1, 4, 9, 16]'}:s),
+        ...items(1,4,6,i=>`The lambda gets ${i+1} and returns <b>${(i+1)*(i+1)}</b>. Same work, no name.`).map((s,i)=>i==3?{...s,out:'[1, 4, 9, 16]'}:s)]},
+
+{id:'reduce-lambda',topic:'1 · Working with functions',title:'reduce: factorial with a lambda',file:'factorial_lambda.py',
+ blurb:'reduce combines a whole list down to one value. It carries a running result (acc) and folds in one item at a time.',
+ facts:[['From','<code>functools</code>. It is not a built-in, so import it.'],['The function','Takes two inputs: the running result and the next item.'],['Factorial','5! = 1 × 2 × 3 × 4 × 5 = 120'],['Shortcut','<code>operator.mul</code> is the standard library\'s ready-made <code>*</code> function.']],
+ code:`from functools import reduce
+
+n = 5
+nums = list(range(1, n + 1))
+
+fact = reduce(lambda acc, x: acc * x, nums)
+print(fact)`,
+ scene:'reduce',fn:'lambda acc, x: acc * x',nums:[1,2,3,4,5],
+ steps:[{i:-1,line:[3,4],say:'range(1, n + 1) stops before n + 1, so the list is 1 to 5.'},
+        {i:0,acc:1,expr:'first item becomes acc',line:6,say:'No starting value was given, so reduce takes the first item, <b>1</b>, as acc.'},
+        {i:1,acc:2,expr:'1 * 2 = 2',line:6,say:'The lambda gets acc = 1 and x = 2. It returns <b>2</b>, the new acc.'},
+        {i:2,acc:6,expr:'2 * 3 = 6',line:6,say:'acc = 2, x = 3. New acc is <b>6</b>.'},
+        {i:3,acc:24,expr:'6 * 4 = 24',line:6,say:'acc = 6, x = 4. New acc is <b>24</b>.'},
+        {i:4,acc:120,expr:'24 * 5 = 120',line:6,say:'acc = 24, x = 5. New acc is <b>120</b>. The list is used up.'},
+        {i:4,acc:120,expr:'24 * 5 = 120',line:7,out:'120',say:'One value is left. That is 5 factorial.'}]},
+
+{id:'reduce-named',topic:'1 · Working with functions',title:'reduce: factorial with a named function',file:'factorial_named.py',
+ blurb:'The same factorial, with def in place of the lambda. reduce does not care how the function was made, only that it takes two inputs.',
+ facts:[['Changed','Only the function. <code>multiply</code> has a name and can be reused or tested alone.'],['Same','The list, the order of steps and the answer.'],['Passing it','<code>reduce(multiply, nums)</code>, without brackets after multiply.']],
+ code:`from functools import reduce
+
+def multiply(acc, x):
+    return acc * x
+
+n = 5
+nums = list(range(1, n + 1))
+
+fact = reduce(multiply, nums)
+print(fact)`,
+ scene:'reduce',fn:'multiply',nums:[1,2,3,4,5],
+ steps:[{i:-1,line:[6,7],say:'The same list, 1 to 5.'},
+        {i:0,acc:1,expr:'first item becomes acc',line:9,say:'reduce takes the first item, <b>1</b>, as acc.'},
+        {i:1,acc:2,expr:'multiply(1, 2) = 2',line:[3,4,9],say:'reduce calls multiply(1, 2). It returns <b>2</b>.'},
+        {i:2,acc:6,expr:'multiply(2, 3) = 6',line:[3,4,9],say:'multiply(2, 3) returns <b>6</b>.'},
+        {i:3,acc:24,expr:'multiply(6, 4) = 24',line:[3,4,9],say:'multiply(6, 4) returns <b>24</b>.'},
+        {i:4,acc:120,expr:'multiply(24, 5) = 120',line:[3,4,9],say:'multiply(24, 5) returns <b>120</b>.'},
+        {i:4,acc:120,expr:'multiply(24, 5) = 120',line:10,out:'120',say:'Same answer as the lambda version.'}]},
+
+{id:'ascii',topic:'1 · Working with functions',title:'String to ASCII and back',file:'ascii_roundtrip.py',
+ blurb:'A string is a list of letters, so map works on it. ord turns a letter into its number; chr turns the number back.',
+ facts:[['ord','Letter to number. <code>ord("V")</code> is 86.'],['chr','Number to letter. <code>chr(86)</code> is "V".'],['join','<code>"".join(...)</code> glues the letters back into one string.'],['Notice','Capital V is 86, small letters start at 97.']],
+ code:`word = "Vizag"
+
+codes = list(map(ord, word))
+print(codes)
+
+back = "".join(map(chr, codes))
+print(back)`,
+ scene:'pipe',cap:'map(fn, ...)',
+ rounds:[{fn:'ord',ins:word.map(c=>`'${c}'`),outs:codes},{fn:'chr',ins:codes,outs:word.map(c=>`'${c}'`)}],
+ steps:[...items(0,5,3,i=>`ord('${word[i]}') is <b>${codes[i]}</b>.`),
+        {r:0,i:4,line:4,out:'[86, 105, 122, 97, 103]',say:'The word is now a list of numbers.'},
+        ...items(1,5,6,i=>`chr(${codes[i]}) is <b>'${word[i]}'</b>.`),
+        {r:1,i:4,line:7,out:'Vizag',say:'join glues the five letters together. The original string is back.'}]},
+
+{id:'sources',topic:'2 · Linking and libraries',title:'Where a function comes from',file:'three_sources.py',
+ blurb:'Every function you call was written by someone. There are three places it can come from, in any language.',
+ facts:[['Your own','You write it. <code>def area(r)</code>'],['Standard library','Ships with the language. <code>import math</code> needs no install.'],['Third-party','Written by others, installed separately. <code>pip install requests</code>']],
+ code:`def area(r):                  # 1. written by you
+    return 3.14159 * r * r
+
+import math                   # 2. standard library
+import requests               # 3. third-party: pip install requests
+
+print(area(2))
+print(math.sqrt(144))
+print(requests.get("https://api.github.com").status_code)`,
+ scene:'graph',
+ nodes:[{id:'p',x:400,y:280,label:'three_sources.py',sub:'your program',w:210},{id:'o',x:130,y:100,label:'area()',sub:'written by you'},{id:'m',x:400,y:80,label:'math',sub:'standard library'},{id:'r',x:670,y:100,label:'requests',sub:'third-party, PyPI'}],
+ edges:[['o','p'],['m','p'],['r','p']],
+ steps:[{line:[1,2],pk:{path:['o','p'],label:'area'},set:{o:{tone:'hot'}},say:'<b>area</b> is your own code. It lives in your file.'},
+        {line:4,pk:{path:['m','p'],label:'math'},set:{o:{tone:''},m:{tone:'hot'}},say:'<b>math</b> came with Python when you installed it. import just brings it in.'},
+        {line:5,pk:{path:['r','p'],label:'requests'},set:{m:{tone:''},r:{tone:'hot'}},say:'<b>requests</b> is not part of Python. Someone published it on PyPI and you installed it with pip.'},
+        {line:7,out:'12.56636',set:{r:{tone:''},o:{tone:'hot'}},say:'Calling your own function.'},
+        {line:8,out:'12.0',set:{o:{tone:''},m:{tone:'hot'}},say:'Calling a standard library function.'},
+        {line:9,out:'200',set:{m:{tone:''},r:{tone:'hot'}},say:'Calling a third-party function. 200 means GitHub answered OK.'}]},
+
+{id:'linking',topic:'2 · Linking and libraries',title:'Static and dynamic linking',file:'load_library.py',
+ blurb:'A program can carry a copy of the library inside itself, or load the library from disk while it runs. Python can show the second one live.',
+ facts:[['Static','Library code is copied into the program at build time. Bigger file, nothing to load later.'],['Dynamic','The program loads the library at run time. Many programs share one copy.'],['File types','Windows <code>.dll</code> · Linux <code>.so</code> · macOS <code>.dylib</code>'],['ctypes','Standard library module that loads a dynamic library and calls its C functions.']],
+ code:`# Static linking happens at build time: the linker copies
+# the library's code into the program file itself.
+
+# Dynamic linking: load the library while the program runs.
+import ctypes, ctypes.util
+
+path = ctypes.util.find_library("c")
+print(path)
+libc = ctypes.CDLL(path)
+print(libc.strlen(b"karyashala"))`,
+ scene:'graph',
+ nodes:[{id:'a',x:170,y:90,label:'libmath.a',sub:'static library'},{id:'x',x:170,y:280,label:'app',sub:'statically linked',w:170},{id:'d',x:600,y:90,label:'libc.so.6',sub:'shared library on disk',w:190},{id:'y',x:600,y:280,label:'python',sub:'running program',w:170}],
+ edges:[['a','x'],['d','y']],
+ steps:[{line:[1,2],pk:{path:['a','x'],label:'copy code'},set:{x:{badge:'library inside the file',tone:'good'}},say:'<b>Static:</b> at build time the library code is copied into the program. The program is complete on its own.'},
+        {line:[7,8],out:'libc.so.6',set:{d:{tone:'hot'}},say:'<b>Dynamic:</b> Python is already running. It finds the C library on disk. This is Linux; macOS gives a .dylib path and Windows uses .dll files.'},
+        {line:9,pk:{path:['d','y'],label:'load'},set:{d:{tone:''},y:{badge:'libc loaded at run time',tone:'good'}},say:'<b>CDLL</b> loads the library into the running program. Nothing was copied at build time.'},
+        {line:10,out:'10',say:'Python calls the C function strlen from the loaded library. "karyashala" has 10 letters.'}]},
+
+{id:'scaling',topic:'3 · Scaling under load',title:'Vertical and horizontal scaling',file:'scaling.py',
+ blurb:'What happens when a server gets more requests than it can handle? Two answers: make the machine bigger, or add more machines.',
+ facts:[['Vertical','A bigger server. More CPU and RAM on the same machine.'],['Horizontal','More servers, with a load balancer in front to share the requests.'],['The check','Overloaded when requests are more than servers × capacity.']],
+ code:`def overloaded(requests, servers, capacity):
+    return requests > servers * capacity
+
+print(overloaded(10, servers=1, capacity=4))    # one small server
+print(overloaded(10, servers=1, capacity=12))   # vertical scaling
+print(overloaded(10, servers=3, capacity=4))    # horizontal scaling`,
+ scene:'graph',
+ nodes:[{id:'c',x:110,y:190,label:'clients',sub:'10 requests'},{id:'s',x:600,y:190,label:'server',sub:'capacity 4'},{id:'lb',x:360,y:190,label:'load balancer',sub:''},{id:'s1',x:640,y:70,label:'server 1',sub:'capacity 4'},{id:'s2',x:640,y:190,label:'server 2',sub:'capacity 4'},{id:'s3',x:640,y:310,label:'server 3',sub:'capacity 4'}],
+ edges:[['c','s'],['c','lb'],['lb','s1'],['lb','s2'],['lb','s3']],
+ init:{lb:{hide:true},s1:{hide:true},s2:{hide:true},s3:{hide:true},s:{meter:[0,4]}},
+ steps:[{line:[1,2,4],out:'True',pk:{path:['c','s'],label:'10 requests'},set:{s:{meter:[10,4],tone:'bad',badge:'overloaded'}},say:'10 requests reach a server that can handle 4. Six are left waiting. 10 > 1 × 4 is <b>True</b>.'},
+        {line:5,out:'False',set:{s:{meter:[10,12],tone:'good',badge:'vertical: bigger machine',big:true,sub:'capacity 12'}},say:'<b>Vertical scaling:</b> the same server gets more CPU and RAM. 10 > 1 × 12 is False.'},
+        {line:6,out:'False',pk:{path:['c','lb'],label:'10 requests'},set:{s:{hide:true},lb:{hide:false,badge:'horizontal: more machines'},s1:{hide:false,meter:[4,4],tone:'good'},s2:{hide:false,meter:[3,4],tone:'good'},s3:{hide:false,meter:[3,4],tone:'good'}},say:'<b>Horizontal scaling:</b> three small servers behind a load balancer. 10 > 3 × 4 is False.'}]},
+
+{id:'round-robin',topic:'3 · Scaling under load',title:'Round robin load balancing',file:'round_robin.py',
+ blurb:'How does the load balancer choose a server? Round robin is the simplest rule: give each new request to the next server in line, then start again.',
+ facts:[['Rule','Next server in line, in turn. After the last one, back to the first.'],['cycle','<code>itertools.cycle</code> repeats a list forever. <code>next()</code> takes one from it.'],['Result','Every server gets the same number of requests.']],
+ code:`from itertools import cycle
+
+servers = cycle(["S1", "S2", "S3"])
+
+for req in range(1, 7):
+    print(f"request {req} -> {next(servers)}")`,
+ scene:'graph',
+ nodes:[{id:'c',x:110,y:190,label:'clients',sub:''},{id:'lb',x:360,y:190,label:'load balancer',sub:'round robin'},{id:'s1',x:650,y:70,label:'S1',sub:''},{id:'s2',x:650,y:190,label:'S2',sub:''},{id:'s3',x:650,y:310,label:'S3',sub:''}],
+ edges:[['c','lb'],['lb','s1'],['lb','s2'],['lb','s3']],
+ init:{s1:{badge:'handled 0'},s2:{badge:'handled 0'},s3:{badge:'handled 0'}},
+ steps:Array.from({length:6},(_,j)=>{const s=j%3+1,o={};for(let q=1;q<=3;q++)o['s'+q]={tone:q==s?'hot':''};o['s'+s].badge='handled '+(Math.floor(j/3)+1);
+   return{line:[5,6],out:`request ${j+1} -> S${s}`,pk:{path:['c','lb','s'+s],label:'req '+(j+1)},set:o,say:j==3?'After S3 the cycle starts again. Request 4 goes to <b>S1</b>.':`Request ${j+1} goes to the next server in line, <b>S${s}</b>.`};})},
+
+{id:'throttling',topic:'4 · Protecting a server',title:'Throttling',file:'throttle.py',
+ blurb:'Throttling slows down how fast requests get handled. Nothing is refused; a burst is made to wait its turn.',
+ facts:[['Does','Slows requests down to a steady pace.'],['Does not','Reject anyone. Every request is handled, later.'],['Here','A 0.5 second gap, so at most 2 requests a second reach the server.']],
+ code:`import time
+
+DELAY = 0.5                    # seconds between requests
+start = time.time()
+
+for req in ["r1", "r2", "r3", "r4"]:
+    time.sleep(DELAY)          # slow down, never refuse
+    print(f"{time.time() - start:.1f}s  handled {req}")`,
+ scene:'graph',...chain('throttle','0.5s between requests'),
+ init:{s:{badge:'handled 0'}},
+ steps:[{line:6,pk:{path:['c','m'],label:'r1 r2 r3 r4'},set:{m:{badge:'4 waiting',tone:'hot'}},say:'Four requests arrive at the same moment. The throttle holds them in a queue.'},
+   ...[1,2,3,4].map(n=>({line:[7,8],out:`${(n*0.5).toFixed(1)}s  handled r${n}`,pk:{path:['m','s'],label:'r'+n},set:{m:{badge:(4-n)+' waiting',tone:n==4?'':'hot'},s:{badge:'handled '+n}},say:n==4?'All four were handled. It took 2 seconds instead of an instant, and the server was never flooded.':`After a 0.5 second wait, <b>r${n}</b> is let through.`}))]},
+
+{id:'rate-limiting',topic:'4 · Protecting a server',title:'Rate limiting',file:'rate_limit.py',
+ blurb:'Rate limiting puts a cap on how many requests one client can send in a time window. Requests over the cap are refused.',
+ facts:[['Cap','A number of requests per window, for example 3 a minute.'],['Over the cap','The server answers <code>429 Too Many Requests</code>.'],['New window','The count starts again from zero and the client can send again.'],['Versus throttling','Throttling makes you wait. Rate limiting says no.']],
+ code:`LIMIT = 3            # requests allowed per time window
+hits = {}            # ip -> requests seen in this window
+
+def allow(ip):
+    hits[ip] = hits.get(ip, 0) + 1
+    return hits[ip] <= LIMIT
+
+for n in range(1, 6):
+    status = 200 if allow("10.0.0.7") else 429
+    print(f"request {n}: {status}")`,
+ scene:'graph',...chain('rate limiter','max 3 per window','10.0.0.7'),
+ init:{m:{badge:'0 of 3 used'}},
+ steps:[1,2,3,4,5].map(n=>n<=3?{line:[5,6,9,10],out:`request ${n}: 200`,pk:{path:['c','m','s'],label:'req '+n},set:{m:{badge:n+' of 3 used',tone:n==3?'hot':''}},say:`hits is now ${n}. ${n} <= 3 is True, so the request is <b>allowed</b>.`}
+   :{line:[5,6,9,10],out:`request ${n}: 429`,pk:{path:['c','m'],label:'req '+n,bad:true},set:{m:{badge:'429 Too Many Requests',tone:'bad'}},say:n==4?'hits is 4. 4 <= 3 is False. The request is <b>refused with 429</b> and never reaches the server.':'Still over the cap. Refused again. When the window ends, hits is cleared.'})},
+
+{id:'ip-block',topic:'4 · Protecting a server',title:'Temporary IP block',file:'ip_block.py',
+ blurb:'A client that goes over the limit can be shut out completely for a while. Every request from that IP is refused until the block ends. GitHub was the example given in class.',
+ facts:[['Trigger','The client crosses the rate limit.'],['Effect','Its source IP is refused for a set time, here 60 seconds.'],['After','The block expires on its own and the client starts fresh.']],
+ code:`LIMIT, BLOCK_SECONDS = 3, 60
+hits, blocked_until = {}, {}
+
+def check(ip, now):
+    if now < blocked_until.get(ip, 0):
+        return "403 blocked"
+    hits[ip] = hits.get(ip, 0) + 1
+    if hits[ip] > LIMIT:
+        blocked_until[ip] = now + BLOCK_SECONDS
+        hits[ip] = 0
+        return "429 too many, blocked for 60s"
+    return "200 OK"
+
+for now in [0, 1, 2, 3, 10, 70]:
+    print(f"t={now}s", check("10.0.0.7", now))`,
+ scene:'graph',...chain('guard','limit 3, block 60s','10.0.0.7'),
+ init:{m:{badge:'0 of 3 used'}},
+ steps:[...[0,1,2].map(t=>({line:[7,12],out:`t=${t}s 200 OK`,pk:{path:['c','m','s'],label:'t='+t+'s'},set:{m:{badge:(t+1)+' of 3 used'}},say:`Request ${t+1} is within the limit. <b>200 OK</b>.`})),
+   {line:[8,9,10,11],out:'t=3s 429 too many, blocked for 60s',pk:{path:['c','m'],label:'t=3s',bad:true},set:{m:{badge:'10.0.0.7 blocked until t=63s',tone:'bad'}},say:'The fourth request crosses the limit. The guard writes down <b>blocked until t = 63</b>.'},
+   {line:[5,6],out:'t=10s 403 blocked',pk:{path:['c','m'],label:'t=10s',bad:true},say:'At t = 10 the block is still on. The request is refused without even being counted.'},
+   {line:[5,7,12],out:'t=70s 200 OK',pk:{path:['c','m','s'],label:'t=70s'},set:{m:{badge:'1 of 3 used',tone:''}},say:'At t = 70 the block has expired. The client is allowed again and its count restarts.'}]},
+
+{id:'serverless',topic:'5 · Serverless computing',title:'Serverless functions',file:'main.py',
+ blurb:'You do not keep a server running. You upload a function, and the platform runs it when a request arrives and removes it when traffic stops.',
+ facts:[['Zoho','Catalyst: serverless backend and functions'],['AWS','Lambda. Bedrock, also mentioned, is its AI model service.'],['Google Cloud','Cloud Run functions'],['Microsoft','Azure Functions'],['Your task','Turn one of your backend functions into a Catalyst function.']],
+ code:`# Before: a Flask server you start and keep running all day.
+# After: only the function. This is a Catalyst Advanced I/O function.
+from flask import Request, make_response, jsonify
+import zcatalyst_sdk
+
+def handler(request: Request):
+    app = zcatalyst_sdk.initialize()
+    n = int(request.args.get("n", 0))
+    return make_response(jsonify({"square": n * n}), 200)`,
+ scene:'graph',
+ nodes:[{id:'c',x:110,y:190,label:'client',sub:''},{id:'m',x:390,y:190,label:'Zoho Catalyst',sub:'the platform',w:180},{id:'s',x:670,y:190,label:'handler()',sub:'function instance',w:170}],
+ edges:[['c','m'],['m','s']],
+ init:{s:{tone:'ghost',badge:'0 running'}},
+ steps:[{line:[3,4,6],set:{m:{badge:'function deployed'}},say:'You deploy the function. There is no server for you to start, patch or watch. Nothing is running yet.'},
+        {line:6,pk:{path:['c','m'],label:'GET ?n=12'},set:{s:{tone:'hot',badge:'cold start: instance created'}},say:'A request arrives. The platform creates an instance of your function. This first-time delay is called a <b>cold start</b>.'},
+        {line:[7,8,9],out:'GET ?n=12  ->  200 {"square": 144}',pk:{path:['m','s'],label:'n=12'},set:{s:{tone:'good',badge:'1 running'}},say:'handler runs: 12 × 12 = 144, sent back as JSON.'},
+        {line:[6,7,8,9],out:'GET ?n=5   ->  200 {"square": 25}',pk:{path:['c','m','s'],label:'GET ?n=5'},set:{s:{tone:'good',badge:'warm: instance reused'}},say:'A second request soon after reuses the same instance. No cold start this time.'},
+        {line:[],set:{s:{tone:'ghost',badge:'idle: scaled to zero'}},say:'Traffic stops. The platform removes the instance. Nothing of yours is running until the next request.'}]}
+];
+const EX=[['Build a list from 1 to n and use reduce with * to get its factorial, with a lambda.','reduce-lambda'],
+          ['Do the same factorial with a named function in place of the lambda.','reduce-named'],
+          ['Turn each letter of a string into its ASCII number, print it, then turn the numbers back into the string.','ascii'],
+          ['Turn one of your backend functions into a serverless function on Zoho.','serverless']];
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id), NS='http://www.w3.org/2000/svg';
+const svg=$('stage'), still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let cur=null,k=-1,playing=false,runId=0,epoch=0,speed=1;
+function S(tag,attrs,parent,text){const e=document.createElementNS(NS,tag);for(const a in attrs)e.setAttribute(a,attrs[a]);if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e;}
+const at=(g,x,y)=>g.setAttribute('transform',`translate(${x},${y})`);
+const lerp=(a,b,t)=>a+(b-a)*t, ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function tween(ms,f){const e=epoch;return new Promise(res=>{const d=ms/speed,t0=performance.now();(function tick(){if(e!==epoch)return;const p=Math.min(1,(performance.now()-t0)/d);f(ease(p));p<1?requestAnimationFrame(tick):res();})();});}
+function tok(x,y,label,cls){label=String(label);const w=Math.max(48,label.length*9.3+22),g=S('g',{class:'tok '+(cls||'')},svg);S('rect',{x:-w/2,y:-18,width:w,height:36,rx:8},g);S('text',{y:5,'text-anchor':'middle'},g,label);at(g,x,y);return g;}
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function hl(line){const re=/((?:\b[fb])?"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(#.*$)|\b(def|return|lambda|import|from|for|in|if|else|print)\b|\b(\d+(?:\.\d+)?)\b/g;
+  let o='',p=0,m;while((m=re.exec(line))){o+=esc(line.slice(p,m.index));o+=`<span class="${m[1]?'s':m[2]?'m':m[3]?'k':'n'}">${esc(m[0])}</span>`;p=re.lastIndex;}return o+esc(line.slice(p));}
+
+/* ---------- scenes ---------- */
+const scenes={
+ async pipe(L,n,anim){
+  svg.textContent='';
+  const st=n<0?{r:0,i:-1}:L.steps[n], pv=n<1?{r:0,i:-1}:L.steps[n-1];
+  const R=L.rounds[st.r],N=R.ins.length,gap=Math.min(120,680/N),X=j=>400+(j-(N-1)/2)*gap;
+  const moved=anim&&st.i>=0&&(st.r!==pv.r||st.i!==pv.i);
+  S('text',{x:24,y:32,class:'lbl'},svg,'INPUT');S('text',{x:24,y:362,class:'lbl'},svg,'OUTPUT');
+  S('path',{d:'M400 106V138M400 246V278',class:'arrow'},svg);
+  const mc=S('g',{class:'mach'},svg);S('rect',{x:250,y:142,width:300,height:100,rx:12},mc);
+  S('text',{x:400,y:170,'text-anchor':'middle',class:'e'},mc,L.cap);
+  S('text',{x:400,y:212,'text-anchor':'middle',class:'f'},mc,'fn = '+(R.fns?R.fns[Math.max(st.i,0)]:R.fn));
+  R.ins.forEach((v,j)=>tok(X(j),70,v,j<=st.i?'used':''));
+  const outTok=j=>R.outs[j]===null?tok(X(j),312,'dropped','ghost'):tok(X(j),312,R.outs[j],'out');
+  for(let j=0;j<=st.i;j++)if(!(moved&&j===st.i))outTok(j);
+  if(moved){const i=st.i,a=tok(X(i),70,R.ins[i],'live');
+   await tween(520,t=>at(a,lerp(X(i),400,t),lerp(70,192,t)));
+   a.remove();mc.classList.add('hot');await tween(260,()=>{});
+   const b=outTok(i);b.classList.add('live');
+   await tween(520,t=>at(b,lerp(400,X(i),t),lerp(192,312,t)));
+   mc.classList.remove('hot');b.classList.remove('live');}
+ },
+ async reduce(L,n,anim){
+  svg.textContent='';
+  const st=n<0?{i:-2}:L.steps[n], pv=n<1?{i:-2}:L.steps[n-1];
+  const N=L.nums.length,X=j=>400+(j-(N-1)/2)*110,moved=anim&&st.i>=0&&st.i!==pv.i;
+  S('text',{x:24,y:32,class:'lbl'},svg,'NUMS');
+  if(st.i>=-1)L.nums.forEach((v,j)=>tok(X(j),70,v,j<=st.i?'used':''));
+  else S('text',{x:400,y:76,'text-anchor':'middle',class:'lbl'},svg,'THE LIST IS BUILT ON LINE 4');
+  S('path',{d:'M400 106V138',class:'arrow'},svg);
+  const mc=S('g',{class:'mach'},svg);S('rect',{x:230,y:142,width:340,height:176,rx:12},mc);
+  S('text',{x:400,y:170,'text-anchor':'middle',class:'e'},mc,'reduce('+L.fn+', nums)');
+  S('text',{x:400,y:208,'text-anchor':'middle',class:'e'},mc,'acc');
+  const show=moved?pv:st;
+  const v=S('text',{x:400,y:254,'text-anchor':'middle',class:'big'},mc,show.acc==null?'–':show.acc);
+  const e=S('text',{x:400,y:294,'text-anchor':'middle',class:'e'},mc,show.expr||'waiting for the first item');
+  if(moved){const a=tok(X(st.i),70,L.nums[st.i],'live');
+   await tween(600,t=>at(a,lerp(X(st.i),400,t),lerp(70,196,t)));
+   a.remove();mc.classList.add('hot');v.textContent=st.acc;e.textContent=st.expr;
+   await tween(420,t=>v.setAttribute('font-size',lerp(46,34,t)));mc.classList.remove('hot');}
+ },
+ async graph(L,n,anim){
+  const state=q=>{const s={},mg=o=>{for(const id in o)s[id]={...s[id],...o[id]};};mg(L.init||{});for(let j=0;j<=q;j++)mg(L.steps[j].set||{});return s;};
+  const by={};L.nodes.forEach(o=>by[o.id]=o);
+  const paint=s=>{svg.textContent='';
+   L.edges.forEach(([a,b])=>{if((s[a]||{}).hide||(s[b]||{}).hide)return;S('line',{x1:by[a].x,y1:by[a].y,x2:by[b].x,y2:by[b].y,class:'edge'},svg);});
+   L.nodes.forEach(o=>{const t=s[o.id]||{};if(t.hide)return;const z=t.big?1.3:1,w=(o.w||150)*z,h=64*z,sub=t.sub||o.sub;
+    const g=S('g',{class:'node '+(t.tone||'')},svg);at(g,o.x,o.y);
+    S('rect',{x:-w/2,y:-h/2,width:w,height:h,rx:10},g);
+    S('text',{y:sub?-3:5,'text-anchor':'middle',class:'t'},g,o.label);
+    if(sub)S('text',{y:16,'text-anchor':'middle',class:'u'},g,sub);
+    if(t.badge){const bw=t.badge.length*7.1+18,b=S('g',{class:'badge'},g);S('rect',{x:-bw/2,y:-h/2-30,width:bw,height:22,rx:11},b);S('text',{y:-h/2-15,'text-anchor':'middle'},b,t.badge);}
+    if(t.meter){const[used,cap]=t.meter,x0=-(cap-1)*6;for(let j=0;j<cap;j++)S('circle',{cx:x0+j*12,cy:h/2+14,r:4.2,class:'dot'+(j<used?' on':'')},g);
+     if(used>cap)S('text',{y:h/2+36,'text-anchor':'middle',class:'over'},g,'+'+(used-cap)+' waiting');}
+   });};
+  const st=n>=0?L.steps[n]:null;
+  if(!(anim&&st&&st.pk)){paint(state(n));return;}
+  paint(state(n-1));
+  const pk=st.pk,pts=pk.path.map(id=>by[id]),w=pk.label.length*7.6+18;
+  const g=S('g',{class:'pk'+(pk.bad?' bad':'')},svg);S('rect',{x:-w/2,y:-13,width:w,height:26,rx:13},g);S('text',{y:4.5,'text-anchor':'middle'},g,pk.label);
+  at(g,pts[0].x,pts[0].y);
+  for(let j=1;j<pts.length;j++){const a=pts[j-1],b=pts[j],last=j==pts.length-1,stop=last&&pk.bad?.72:1;
+   await tween(620,t=>at(g,lerp(a.x,b.x,t*stop),lerp(a.y,b.y,t*stop)));}
+  if(pk.bad)await tween(500,t=>{at(g,lerp(pts[pts.length-2].x,pts[pts.length-1].x,.72-t*.3),pts[0].y+t*46);g.setAttribute('opacity',1-t*.7);});
+  paint(state(n));
+ }
+};
+
+/* ---------- player ---------- */
+function chrome(){
+  const st=k>=0?cur.steps[k]:null,on=st?[].concat(st.line):[];
+  document.querySelectorAll('.ln').forEach((e,i)=>e.classList.toggle('on',on.includes(i+1)));
+  $('say').innerHTML=st?st.say:'Press <b>Play</b> to run the code, or <b>Step</b> to go one move at a time.';
+  const outs=cur.steps.slice(0,k+1).map((s,i)=>s.out?[s.out,i===k]:null).filter(Boolean);
+  $('out').innerHTML=outs.length?outs.map(([t,n])=>`<div${n?' class="new"':''}>${esc(t)}</div>`).join(''):'<em>Whatever the code prints shows up here.</em>';
+  [...$('rows').children].forEach((r,i)=>{r.className=i===k?'on':i<k?'done':'';});
+  const total=cur.steps.length,txt=`step ${Math.max(k+1,0)} of ${total}`;$('prog').textContent=txt;$('prog2').textContent=txt;
+  $('bBack').disabled=k<0;$('bStep').disabled=k>=total-1;
+  $('bPlay').textContent=playing?'Pause':k>=total-1?'Replay':'Play';
+}
+async function show(n,anim){epoch++;k=n;chrome();await scenes[cur.scene](cur,n,anim&&!still);}
+function stop(){playing=false;runId++;if(cur)chrome();}
+async function play(){
+  const id=++runId;playing=true;
+  if(k>=cur.steps.length-1)await show(-1,false);else chrome();
+  await sleep(350);
+  while(id===runId&&k<cur.steps.length-1){await show(k+1,true);if(id!==runId)return;await sleep(900/speed);}
+  if(id===runId){playing=false;chrome();}
+}
+function open(id,auto){
+  const L=LESSONS.find(l=>l.id===id)||LESSONS[0];stop();cur=L;
+  $('kick').textContent='Topic '+L.topic;$('title').textContent=L.title;$('blurb').textContent=L.blurb;$('fname').textContent=L.file;
+  $('facts').innerHTML=L.facts.map(([a,b])=>`<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
+  $('code').innerHTML=L.code.split('\n').map((l,i)=>`<span class="ln"><i>${i+1}</i>${hl(l)}</span>`).join('');
+  $('rows').innerHTML=L.steps.map((s,i)=>{const ln=[].concat(s.line);return `<tr tabindex="0" data-i="${i}"><td>${i+1}</td><td>${ln.length?ln.length>1?ln[0]+'–'+ln[ln.length-1]:ln[0]:'–'}</td><td>${s.say.replace(/<\/?b>/g,'')}</td><td>${s.out?esc(s.out):''}</td></tr>`;}).join('');
+  document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.id===L.id));
+  const ix=LESSONS.indexOf(L);$('bNext').disabled=ix===LESSONS.length-1;
+  if(location.hash.slice(1)!==L.id){try{history.replaceState(null,'','#'+L.id);}catch(e){location.hash=L.id;}}
+  show(-1,false);if(auto&&!still)play();
+}
+/* build nav + exercises */
+(function(){const groups={};LESSONS.forEach(l=>(groups[l.topic]=groups[l.topic]||[]).push(l));
+  $('nav').innerHTML=Object.keys(groups).map(t=>`<div class="grp"><h2>${t}</h2>${groups[t].map(l=>`<button type="button" data-id="${l.id}">${l.title}</button>`).join('')}</div>`).join('');
+  let done={};try{done=JSON.parse(localStorage.getItem('fe2e-ex')||'{}');}catch(e){}
+  $('ex').innerHTML=EX.map(([t,id],i)=>`<li><input type="checkbox" id="ex${i}"${done[i]?' checked':''}><label for="ex${i}">${t}</label><a href="#${id}">Watch it →</a></li>`).join('');
+  $('ex').addEventListener('change',e=>{done[e.target.id.slice(2)]=e.target.checked;try{localStorage.setItem('fe2e-ex',JSON.stringify(done));}catch(e){}});
+})();
+$('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b){open(b.dataset.id,true);}});
+$('bPlay').onclick=()=>playing?stop():play();
+$('bStep').onclick=()=>{stop();if(k<cur.steps.length-1)show(k+1,true);};
+$('bBack').onclick=()=>{stop();if(k>=0)show(k-1,false);};
+$('bReset').onclick=()=>{stop();show(-1,false);};
+$('bNext').onclick=()=>{const ix=LESSONS.indexOf(cur);if(ix<LESSONS.length-1){open(LESSONS[ix+1].id,true);window.scrollTo({top:0,behavior:still?'auto':'smooth'});}};
+$('speed').onchange=e=>{speed=+e.target.value;};
+const jump=e=>{const r=e.target.closest('tr');if(r){stop();show(+r.dataset.i,false);}};
+$('rows').addEventListener('click',jump);
+$('rows').addEventListener('keydown',e=>{if(e.key==='Enter')jump(e);});
+document.addEventListener('keydown',e=>{if(/SELECT|INPUT|BUTTON/.test(e.target.tagName))return;
+  if(e.key==='ArrowRight')$('bStep').click();else if(e.key==='ArrowLeft')$('bBack').click();});
+addEventListener('hashchange',()=>{const id=location.hash.slice(1);if(id&&id!==cur.id){open(id,true);window.scrollTo(0,0);}});
+open(location.hash.slice(1),true);
+</script>
+</body>
+</html>
