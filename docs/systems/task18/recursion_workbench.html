@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recursion Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one bench. Big stage on the left (picture + call stack + step note + transport),
+   lesson panel on the right (overview / code / why), lesson strip along the bottom. */
+:root{
+  --bg:#edf0f6; --surface:#ffffff; --surface-2:#f4f6fb; --line:#d3d9e6; --line-soft:#e4e8f1;
+  --ink:#1a2135; --muted:#5a647a; --faint:#8b94a8;
+  --accent:#3646c4;            /* controls, links, selection */
+  --now:#d4500f; --now-bg:#fff0e6;     /* the call running right now */
+  --live:#2c69d6; --live-bg:#e8f0ff;   /* calls waiting on the stack */
+  --done:#23875a; --done-bg:#e5f5ec;   /* calls that have returned */
+  --err:#c22a3a; --err-bg:#fde9eb;
+  --display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#11141c; --surface:#191e2a; --surface-2:#202636; --line:#333b50; --line-soft:#283044;
+    --ink:#e7eaf3; --muted:#a0a9bd; --faint:#727b91;
+    --accent:#98a5ff;
+    --now:#ff8f52; --now-bg:#3a2417;
+    --live:#74a5ff; --live-bg:#1b2a47;
+    --done:#52c890; --done-bg:#16302a;
+    --err:#ff7480; --err-bg:#3b1a20;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11141c; --surface:#191e2a; --surface-2:#202636; --line:#333b50; --line-soft:#283044;
+  --ink:#e7eaf3; --muted:#a0a9bd; --faint:#727b91;
+  --accent:#98a5ff;
+  --now:#ff8f52; --now-bg:#3a2417;
+  --live:#74a5ff; --live-bg:#1b2a47;
+  --done:#52c890; --done-bg:#16302a;
+  --err:#ff7480; --err-bg:#3b1a20;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--body)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:default;opacity:.4}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+.app{height:100%;min-height:660px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;padding:14px 18px 14px;max-width:1500px;margin:0 auto}
+
+/* header */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{width:38px;height:38px;flex:none;color:var(--accent)}
+.top h1{font:700 24px/1 var(--display);letter-spacing:-.01em}
+.tag{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+.progress{margin-left:auto;display:flex;align-items:center;gap:10px;font:500 12.5px var(--mono);color:var(--muted)}
+.bar{width:120px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--done);transition:width .3s}
+
+/* main */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 368px;gap:12px;min-height:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.stage{display:flex;flex-direction:column;min-height:0;min-width:0}
+.stage-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:12px 16px 8px;flex-wrap:wrap}
+.eyebrow{font:500 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stage-head h2{font:700 20px/1.2 var(--display);text-wrap:balance}
+.reading{font:600 13px/1.3 var(--mono);background:var(--ink);color:var(--surface);padding:7px 12px;border-radius:999px;max-width:100%;overflow-wrap:anywhere}
+.reading.err{background:var(--err);color:#fff}
+.stage-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 184px;gap:10px;padding:0 12px}
+.viz{min-height:0;min-width:0;overflow:auto;border-radius:10px;background:
+  linear-gradient(var(--line-soft) 1px,transparent 1px) 0 0/100% 28px,
+  linear-gradient(90deg,var(--line-soft) 1px,transparent 1px) 0 0/28px 100%,var(--surface-2);
+  border:1px solid var(--line-soft);padding:12px;display:flex}
+.viz>*{margin:auto;flex:none}
+.viz svg{display:block;width:100%;height:100%;max-height:100%}
+.stack{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line-soft);border-radius:10px;background:var(--surface-2);padding:10px}
+.stack h3{font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.frames{list-style:none;margin:8px 0 0;padding:0;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column-reverse;justify-content:flex-start;gap:5px}
+.frames li{border:1.5px solid var(--live);background:var(--live-bg);border-radius:8px;padding:5px 8px;font:500 12px/1.35 var(--mono);overflow-wrap:anywhere}
+.frames li small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.frames li.top-frame{border-color:var(--now);background:var(--now-bg)}
+.frames li.err{border-color:var(--err);background:var(--err-bg)}
+.frames .empty{border:1.5px dashed var(--line);background:none;color:var(--faint);font-family:var(--body)}
+.legend{display:flex;flex-direction:column;gap:3px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;flex:none}
+.out{margin:8px 12px 0;padding:6px 10px;border:1px solid var(--line-soft);border-radius:8px;font:500 13px var(--mono);display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:36px}
+.out b{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.out span{background:var(--done-bg);color:var(--done);border-radius:5px;padding:1px 7px}
+.note{margin:8px 12px 0;padding:9px 12px;border-left:4px solid var(--now);background:var(--now-bg);border-radius:0 8px 8px 0;font-size:15px;line-height:1.4;min-height:60px}
+.note.err{border-color:var(--err);background:var(--err-bg)}
+.transport{display:flex;align-items:center;gap:8px;padding:10px 12px 12px;flex-wrap:wrap}
+.tbtn{width:38px;height:36px;border:1px solid var(--line);background:var(--surface);border-radius:9px;display:grid;place-items:center}
+.tbtn svg{width:16px;height:16px;fill:currentColor}
+.tbtn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.tbtn.play{width:auto;padding:0 14px 0 11px;display:flex;gap:6px;background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:600}
+.tbtn.play:hover:not(:disabled){color:var(--surface);filter:brightness(1.1)}
+.scrub{flex:1;min-width:120px;accent-color:var(--accent)}
+.count{font:500 12.5px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums;min-width:92px;text-align:right}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface);padding:6px 11px;font-size:13px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-checked="true"]{background:var(--accent);color:var(--surface);font-weight:600}
+
+/* panel */
+.panel{display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;gap:4px;padding:8px 8px 0;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;padding:8px 12px 10px;font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+.panel-body{flex:1;min-height:0;overflow:auto;padding:16px}
+.panel-body h3{font:700 19px/1.25 var(--display);text-wrap:balance;margin-bottom:8px}
+.panel-body p{color:var(--muted);margin-bottom:10px;max-width:62ch}
+.panel-body p b,.panel-body li b{color:var(--ink)}
+.feats{list-style:none;padding:0;margin:14px 0 0;display:flex;flex-direction:column;gap:8px}
+.feats li{display:flex;gap:10px;align-items:flex-start;color:var(--ink)}
+.feats i{flex:none;width:24px;height:24px;border-radius:7px;border:1px solid var(--line);display:grid;place-items:center;font:600 12px var(--mono);font-style:normal;color:var(--accent)}
+.keys{margin-top:16px;padding-top:12px;border-top:1px solid var(--line-soft);font-size:13px;color:var(--muted)}
+kbd{font:500 11.5px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--surface-2);color:var(--ink)}
+.ctl{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--surface-2)}
+.ctl-label{display:flex;justify-content:space-between;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.ctl-note{font-size:13px;color:var(--muted);margin:6px 0 0}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.code{margin:4px 0 0;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:8px 0;overflow-x:auto;font:400 12.5px/1.75 var(--mono)}
+.code div{padding:0 12px 0 9px;white-space:pre;border-left:3px solid transparent;min-width:max-content}
+.code div.on{background:var(--now-bg);border-left-color:var(--now)}
+.code .k{color:var(--accent);font-weight:500}
+.code .c{color:var(--faint)}
+.sub{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.eq{font:500 13px/1.6 var(--mono);background:var(--surface-2);border:1px solid var(--line-soft);border-radius:8px;padding:8px 10px;margin:0 0 10px;color:var(--ink);overflow-x:auto}
+table.t{border-collapse:collapse;width:100%;margin:0 0 12px;font:400 13px var(--mono);font-variant-numeric:tabular-nums}
+table.t th,table.t td{border-bottom:1px solid var(--line-soft);padding:4px 8px;text-align:right}
+table.t th{font-weight:600;color:var(--muted);font-size:11.5px}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t tr.cur td{background:var(--now-bg);color:var(--ink);font-weight:600}
+.real{border-left:3px solid var(--done);padding:2px 0 2px 10px;font-size:14px}
+
+/* lesson strip */
+.strip{display:flex;gap:8px;align-items:stretch}
+.cards{list-style:none;margin:0;padding:0;display:flex;gap:8px;flex:1;min-width:0;overflow-x:auto}
+.cards button{flex:1 0 150px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:11px;padding:8px 12px;display:flex;gap:10px;align-items:center;min-height:52px;width:100%}
+.cards li{flex:1 0 150px;display:flex}
+.cards .num{font:700 17px var(--display);color:var(--faint);width:18px}
+.cards .tt{font:600 13.5px/1.25 var(--body)}
+.cards .tick{margin-left:auto;width:18px;height:18px;border-radius:50%;background:var(--done);color:var(--surface);display:none;place-items:center;font-size:11px;flex:none}
+.cards .is-done .tick{display:grid}
+.cards button[aria-current="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cards button[aria-current="true"] .num{color:var(--accent)}
+.nav{width:44px;border:1px solid var(--line);background:var(--surface);border-radius:11px;font-size:18px;flex:none}
+.nav.next{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+
+/* lesson 1: nested calls */
+.dolls{width:min(100%,520px)}
+.doll{border:1.5px solid var(--line);border-radius:10px;padding:5px 8px 7px;background:var(--surface);margin-top:5px}
+.doll-head{display:flex;justify-content:space-between;gap:10px;font:500 12.5px/1.5 var(--mono)}
+.doll-head em{font-style:normal;color:var(--faint)}
+.doll[data-s="idle"]{border-style:dashed;background:transparent;color:var(--faint)}
+.doll[data-s="live"]{border-color:var(--live);background:var(--live-bg)}
+.doll[data-s="live"]>.doll-head em{color:var(--live)}
+.doll[data-s="now"]{border-color:var(--now);background:var(--now-bg);border-width:2px}
+.doll[data-s="now"]>.doll-head em{color:var(--now);font-weight:600}
+.doll[data-s="done"]{border-color:var(--done);background:var(--done-bg)}
+.doll[data-s="done"]>.doll-head em{color:var(--done);font-weight:600}
+.doll.err{border-color:var(--err);background:var(--err-bg)}
+.doll.err>.doll-head em{color:var(--err)}
+
+/* svg pieces */
+.br{stroke-linecap:round;fill:none}
+.br[data-s="idle"]{opacity:0}
+.br[data-s="live"]{stroke:var(--live)}
+.br[data-s="now"]{stroke:var(--now)}
+.br[data-s="done"]{stroke:var(--muted)}
+.br.leaf[data-s="done"]{stroke:var(--done)}
+.tip{fill:var(--now)}
+.edge{stroke:var(--line);stroke-width:1.5;fill:none}
+.edge[data-s="live"],.edge[data-s="now"]{stroke:var(--live);stroke-width:2}
+.edge[data-s="done"]{stroke:var(--done)}
+.bn circle,.dn rect{fill:var(--surface);stroke:var(--faint);stroke-width:1.5}
+.bn text,.dn text{font:500 13px var(--mono);fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+.bn.nil circle{stroke-dasharray:2 2}
+.bn.nil text{font-size:8px;fill:var(--faint)}
+.dn text{text-anchor:start;font-size:11px}
+.dn.txt rect{stroke-dasharray:3 2}
+.dn.txt text{fill:var(--muted)}
+[data-s="live"]>circle,[data-s="live"]>rect{stroke:var(--live);fill:var(--live-bg);stroke-width:2}
+[data-s="now"]>circle,[data-s="now"]>rect{stroke:var(--now);fill:var(--now-bg);stroke-width:2.5}
+[data-s="done"]>circle,[data-s="done"]>rect{stroke:var(--done)}
+.bn[data-p="1"]>circle{fill:var(--done-bg)}
+.badge rect{fill:var(--done);stroke:none}
+.badge text{fill:var(--surface);font:600 9.5px var(--mono);text-anchor:middle;dominant-baseline:central}
+
+/* lesson 4: folders */
+.files{width:min(100%,430px);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px;font:500 13px var(--mono)}
+.frow{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:6px;border-left:3px solid transparent}
+.frow .ico{width:15px;height:12px;flex:none;border-radius:2px;background:var(--faint);position:relative}
+.frow.dir .ico{background:var(--accent)}
+.frow.dir .ico::before{content:"";position:absolute;left:0;top:-3px;width:7px;height:4px;border-radius:2px 2px 0 0;background:inherit}
+.frow.file .ico{width:11px;height:14px;margin:0 2px;background:none;border:1.5px solid var(--faint)}
+.frow .val{margin-left:auto;font-size:12px;color:var(--faint)}
+.frow[data-s="live"]{border-left-color:var(--live);background:var(--live-bg)}
+.frow[data-s="now"]{border-left-color:var(--now);background:var(--now-bg)}
+.frow[data-s="done"] .val{color:var(--done);font-weight:600}
+.frow.hit{outline:2px solid var(--done);background:var(--done-bg)}
+.frow.target .nm{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+
+/* lesson 5: DOM */
+.dom{display:grid;grid-template-columns:minmax(150px,178px) minmax(0,1fr);gap:10px;width:100%;height:100%;align-items:stretch}
+.dom-col{display:flex;flex-direction:column;min-height:0;min-width:0}
+.dom-col h4{margin:0 0 5px;font:600 10.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.src{margin:0;flex:1;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 0;font:400 10.5px/1.7 var(--mono)}
+.src div{white-space:pre;padding:0 10px 0 7px;border-left:3px solid transparent;color:var(--muted);min-width:max-content}
+.src div.seen{color:var(--ink)}
+.src div.on{background:var(--now-bg);border-left-color:var(--now);color:var(--ink)}
+.dom-tree{flex:1;min-height:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px}
+
+@media (max-width:1000px){
+  html,body{height:auto}
+  .app{height:auto;min-height:0;display:flex;flex-direction:column;padding:12px 16px}
+  .main{grid-template-columns:1fr}
+  .stage-body{grid-template-columns:1fr}
+  .viz{min-height:320px;max-height:70vh}
+  .stack{max-height:260px}
+  .legend{flex-direction:row;flex-wrap:wrap;gap:4px 12px}
+  .dom{grid-template-columns:1fr;height:auto}
+  .dom-tree{min-height:280px}
+  .src{max-height:200px}
+  .panel-body{overflow:visible}
+  .progress{margin-left:0;width:100%}
+  .strip{order:-1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <svg class="logo" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><rect x="2" y="2" width="36" height="36" rx="8"/><rect x="9" y="9" width="22" height="22" rx="5"/><rect x="15" y="15" width="10" height="10" rx="2.5" fill="currentColor"/></svg>
+    <div>
+      <h1>Recursion Workbench</h1>
+      <p class="tag">Call · Wait · Return</p>
+    </div>
+    <div class="progress"><span id="progText">0 of 5 lessons run</span><span class="bar"><i id="progBar"></i></span></div>
+  </header>
+
+  <main class="main">
+    <section class="stage card" aria-label="Workbench">
+      <div class="stage-head">
+        <div><span class="eyebrow" id="lessonNo"></span><h2 id="lessonTitle"></h2></div>
+        <div class="reading" id="reading"></div>
+      </div>
+      <div class="stage-body">
+        <div class="viz" id="viz"></div>
+        <aside class="stack" aria-label="Call stack">
+          <h3><span>Call stack</span><span id="stackCount"></span></h3>
+          <ol class="frames" id="frames"></ol>
+          <div class="legend">
+            <span><i style="background:var(--now)"></i>Running now</span>
+            <span><i style="background:var(--live)"></i>Waiting for an answer</span>
+            <span><i style="background:var(--done)"></i>Finished</span>
+          </div>
+        </aside>
+      </div>
+      <div class="out" id="out" hidden></div>
+      <p class="note" id="note" aria-live="polite"></p>
+      <div class="transport">
+        <button class="tbtn" id="bRestart" title="Back to the start (R)" aria-label="Back to the start"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+        <button class="tbtn" id="bBack" title="One step back (←)" aria-label="One step back"><svg viewBox="0 0 16 16"><path d="M11 2v12L3 8z"/></svg></button>
+        <button class="tbtn play" id="bPlay" title="Play or pause (Space)"><svg viewBox="0 0 16 16" id="playIco"><path d="M4 2l10 6-10 6z"/></svg><span id="playTxt">Play</span></button>
+        <button class="tbtn" id="bFwd" title="One step forward (→)" aria-label="One step forward"><svg viewBox="0 0 16 16"><path d="M5 2v12l8-6z"/></svg></button>
+        <input class="scrub" id="scrub" type="range" min="0" max="1" value="0" aria-label="Position in the run">
+        <span class="count" id="count"></span>
+        <div class="seg" role="radiogroup" aria-label="Speed" id="speed">
+          <button role="radio" data-ms="1200" aria-checked="false">Slow</button>
+          <button role="radio" data-ms="600" aria-checked="true">Normal</button>
+          <button role="radio" data-ms="130" aria-checked="false">Fast</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel card" aria-label="Lesson">
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-tab="code" aria-selected="false">Code</button>
+        <button role="tab" data-tab="why" aria-selected="false">Why it works</button>
+      </div>
+      <div class="panel-body" role="tabpanel">
+        <div id="tab-overview"></div>
+        <div id="tab-code" hidden>
+          <div id="controls"></div>
+          <p class="sub">The function</p>
+          <div class="code" id="code"></div>
+          <p class="ctl-note">The highlighted line is the one running in the top call of the stack.</p>
+        </div>
+        <div id="tab-why" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="strip" aria-label="Lessons">
+    <button class="nav" id="prevL" aria-label="Previous lesson" title="Previous lesson ([)">‹</button>
+    <ol class="cards" id="cards"></ol>
+    <button class="nav next" id="nextL" aria-label="Next lesson" title="Next lesson (])">›</button>
+  </nav>
+</div>
+
+<script>
+"use strict";
+/* ---------- small helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svg(tag, attrs, parent){ const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const N = (label, data) => Object.assign({label, kids: [], callStep: Infinity, retStep: Infinity}, data);
+const clip = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+function hl(t){
+  const i = t.indexOf('//'); const code = i < 0 ? t : t.slice(0, i), com = i < 0 ? '' : t.slice(i);
+  return esc(code).replace(/\b(function|return|if|for|const|let|of|null)\b/g, '<span class="k">$1</span>') + (com ? '<span class="c">' + esc(com) + '</span>' : '');
+}
+/* state of one node at step i: idle (not called yet), now (top of stack), live (waiting), done (returned) */
+function st(n, i, s){ return i < n.callStep ? 'idle' : i > n.retStep ? 'done' : s.node === n ? 'now' : 'live'; }
+
+/* ---------- the recorder: runs a real recursive function and writes down every step ---------- */
+function tracer(){
+  const steps = [], stack = [], out = []; let calls = 0, maxDepth = 0;
+  const T = {
+    steps, out,
+    enter(node, label, locals){ stack.push({label, node, locals: Object.assign({}, locals)}); node.callStep = steps.length; calls++; maxDepth = Math.max(maxDepth, stack.length); },
+    set(k, v){ stack[stack.length - 1].locals[k] = v; },
+    emit(line, note, extra){
+      steps.push(Object.assign({line, note, node: stack.length ? stack[stack.length - 1].node : null, outN: out.length,
+        stack: stack.map(f => ({label: f.label, locals: Object.assign({}, f.locals)}))}, extra || {}));
+      return steps.length - 1;
+    },
+    ret(val, shown, line, note){
+      const f = stack[stack.length - 1];
+      if (shown !== undefined) f.locals.returns = shown;
+      const i = T.emit(line, note); f.node.retStep = i; f.node.retVal = val; f.node.retShown = shown; stack.pop(); return val;
+    },
+    stats(){ return {calls, maxDepth}; }
+  };
+  return T;
+}
+/* "leaf answers, parent combines": shared by the folder-size and DOM lessons */
+function fold(T, root, o){
+  return (function go(n){
+    T.enter(n, o.frame(n), {});
+    if (o.isLeaf(n)){ const v = o.leaf(n); return T.ret(v, o.fmt(v), 'base', o.leafNote(n, v)); }
+    let acc = o.init; T.set(o.acc, o.fmt(acc)); T.emit('init', o.initNote(n));
+    for (const c of n.kids){
+      T.emit('call', o.askNote(n, c));
+      const v = go(c); acc = o.add(acc, v); T.set(o.acc, o.fmt(acc));
+      T.emit('call', o.gotNote(n, c, v, acc));
+    }
+    const r = o.done(acc); return T.ret(r, o.fmt(r), 'ret', o.retNote(n, r));
+  })(root);
+}
+function finish(T, more){ return Object.assign({steps: T.steps, out: T.out}, T.stats(), more); }
+
+/* ---------- lesson data ---------- */
+const FILES = ['project', [
+  ['index.html', 4], ['README.md', 2],
+  ['src', [['app.js', 12], ['utils.js', 6], ['components', [['Button.js', 3], ['Card.js', 5]]]]],
+  ['assets', [['logo.png', 48], ['fonts', []]]],
+  ['notes', [['todo.txt', 1]]]
+]];
+function mkFiles(a, path, depth){
+  const p = path ? path + '/' + a[0] : a[0];
+  const n = N(a[0], {name: a[0], path: p, depth, isFile: !Array.isArray(a[1])});
+  if (n.isFile) n.size = a[1]; else n.kids = a[1].map(c => mkFiles(c, p, depth + 1));
+  return n;
+}
+const flat = (n, acc = []) => { acc.push(n); n.kids.forEach(k => flat(k, acc)); return acc; };
+const kb = v => v + ' KB';
+
+const SHAPES = {
+  balanced: [8, [4, [2], [6]], [12, [10], [14]]],
+  uneven:   [8, [3, [1], [6, [4], [7]]], [10, null, [14, [13], null]]],
+  lopsided: [1, null, [2, null, [3, null, [4, null, [5]]]]]
+};
+function mkBin(a){ if (!a) return N('null', {nil: true}); const n = N(String(a[0]), {value: a[0]}); n.kids = [mkBin(a[1]), mkBin(a[2])]; return n; }
+
+const PAGES = {
+  article: `<header><h1>Recursion</h1><nav><a>Home</a><a>Lessons</a></nav></header>
+<main><p>A function that <em>calls itself</em>.</p><ul><li>Base case</li><li>Smaller step</li></ul></main>`,
+  card: `<div><img><h2>Fractal tree</h2><p>Depth <b>4</b></p><button>Grow</button></div>`
+};
+/* The browser does the HTML → DOM conversion (DOMParser). We only copy its tree into plain objects. */
+function mkDom(page){
+  const doc = new DOMParser().parseFromString(PAGES[page], 'text/html');
+  const root = page === 'article' ? doc.body : doc.body.firstElementChild;
+  return (function copy(d){
+    if (d.nodeType === Node.TEXT_NODE){
+      const t = d.data.replace(/\s+/g, ' '); if (!t.trim()) return null;
+      return N('"' + clip(t.trim(), 12) + '"', {isText: true, text: t});
+    }
+    if (d.nodeType !== Node.ELEMENT_NODE) return null;
+    const n = N('<' + d.tagName.toLowerCase() + '>', {tag: d.tagName.toLowerCase()});
+    n.kids = [...d.childNodes].map(copy).filter(Boolean); return n;
+  })(root);
+}
+
+/* ---------- lessons ---------- */
+const LESSONS = [
+/* 1 */ {
+  id: 'calls-itself', title: 'A function that calls itself', card: 'Calls itself',
+  heading: 'Do one small part, hand over the rest',
+  lede: 'factorial(4) means 4 × 3 × 2 × 1. A recursive function does one multiplication and asks a copy of itself for the rest. Each call waits on the stack until the call inside it answers. The base case is the one call that answers without asking anyone.',
+  features: ['Each box is one call, with its own private n', 'Calls pile up on the way in. Answers come back on the way out', 'Remove the base case and watch the stack overflow'],
+  params: [
+    {key: 'n', label: 'Start with n', type: 'choice', value: 4, options: [2, 3, 4, 5, 6].map(n => ({value: n, label: String(n), note: `factorial(${n}) needs ${n} calls.`}))},
+    {key: 'base', label: 'Base case', type: 'choice', value: true, options: [
+      {value: true, label: 'Kept', note: 'When n reaches 1 the function answers 1 and the calls unwind.'},
+      {value: false, label: 'Removed', note: 'Nothing stops the calls. n goes past 1 to 0, −1, −2…'}]}
+  ],
+  code: v => v.base
+    ? [['head', 'function factorial(n) {'], ['base', '  if (n === 1) return 1;   // base case'], ['call', '  const rest = factorial(n - 1);'], ['ret', '  return n * rest;'], ['', '}']]
+    : [['head', 'function factorial(n) {'], ['', '  // base case removed'], ['call', '  const rest = factorial(n - 1);'], ['ret', '  return n * rest;'], ['', '}']],
+  build(v){
+    const T = tracer(), nodes = []; let halted = false;
+    function fact(n){
+      const node = N(`factorial(${n})`, {n}); nodes.push(node);
+      T.enter(node, node.label, {n});
+      T.emit('head', `factorial(${n}) starts. It has its own copy of n, and here n is ${n}.`);
+      if (v.base){
+        if (n === 1) return T.ret(1, 1, 'base', 'n is 1. This is the base case: answer 1 without calling again.');
+        T.emit('base', `n is ${n}, not 1, so this call cannot answer yet.`);
+      } else if (nodes.length >= 9){
+        T.emit('call', 'The stack is full. JavaScript stops the program with "RangeError: Maximum call stack size exceeded". No call ever returned.', {error: true});
+        halted = true; return null;
+      }
+      T.emit('call', `Ask factorial(${n - 1}) for the rest, and wait here until it answers.`);
+      const rest = fact(n - 1); if (halted) return null;
+      T.set('rest', rest);
+      T.emit('call', `factorial(${n - 1}) answered ${rest}. Now rest is ${rest}.`);
+      return T.ret(n * rest, n * rest, 'ret', `Answer ${n} × ${rest} = ${n * rest}, and leave the stack.`);
+    }
+    const result = fact(v.n);
+    return finish(T, {nodes, result});
+  },
+  render(M, box){
+    const wrap = el('div', 'dolls'); let parent = wrap;
+    M.nodes.forEach(n => {
+      const d = el('div', 'doll'), head = el('div', 'doll-head');
+      head.append(el('span', '', n.label), n.valEl = el('em'));
+      d.append(head); parent.append(d); n.el = d; parent = d;
+    });
+    box.append(wrap);
+  },
+  paint(M, i, s){
+    M.nodes.forEach(n => {
+      const state = st(n, i, s); n.el.dataset.s = state;
+      const err = s.error && state !== 'idle'; n.el.classList.toggle('err', !!err);
+      n.valEl.textContent = i >= n.retStep ? 'returns ' + n.retVal : err ? (state === 'now' ? 'no room left' : 'stuck') : state === 'now' ? 'running' : state === 'live' ? 'waiting' : '';
+    });
+  },
+  reading(M, i, s, v){ return s.error ? 'Stack overflow' : i === M.steps.length - 1 ? `factorial(${v.n}) = ${M.result}` : `${s.stack.length} call${s.stack.length > 1 ? 's' : ''} on the stack`; },
+  why(v, M){
+    const f = n => n < 2 ? 1 : n * f(n - 1);
+    let rows = ''; for (let n = 1; n <= 6; n++) rows += `<tr class="${n === v.n ? 'cur' : ''}"><td>factorial(${n})</td><td>${n}</td><td>${f(n)}</td></tr>`;
+    return `<h3>Two parts, always</h3>
+<p>Every recursive function has a <b>base case</b> that answers directly, and a <b>recursive case</b> that calls itself on something smaller. Here n − 1 moves each call one step closer to 1.</p>
+<div class="eq">factorial(n) = n × factorial(n − 1)<br>factorial(1) = 1</div>
+<table class="t"><tr><th>Call</th><th>Calls made</th><th>Answer</th></tr>${rows}</table>
+<p>factorial(n) makes n calls, and at the deepest point all n are waiting on the stack at once.</p>
+${v.base ? '' : '<p><b>With the base case removed</b> nothing ever answers, so no call can finish. Chrome gives up after roughly ten thousand frames. This bench stops at 9 so you can see it happen.</p>'}
+<p class="real">A plain loop can multiply 4 × 3 × 2 × 1 with no stack at all. Recursion earns its keep when the data itself is nested, which is what the next four lessons show.</p>`;
+  }
+},
+/* 2 */ {
+  id: 'fractal-tree', title: 'Grow a tree', card: 'Grow a tree',
+  heading: 'A tree is a branch with smaller trees on it',
+  lede: 'Draw one branch. At its tip, grow smaller trees by the very same rule. Each of those does the same again, until depth reaches 0 and a twig stops the growth. Seven lines of code draw the whole tree.',
+  features: ['One rule, used again at every size', 'depth counts down to the base case', 'One more level multiplies the work'],
+  params: [
+    {key: 'depth', label: 'Depth', type: 'choice', value: 4, options: [1, 2, 3, 4, 5, 6].map(d => ({value: d, label: String(d)}))},
+    {key: 'branches', label: 'Branches at each tip', type: 'choice', value: 2, options: [{value: 2, label: '2'}, {value: 3, label: '3'}]},
+    {key: 'angle', label: 'Turn', type: 'range', min: 10, max: 45, step: 1, value: 25, unit: '°'}
+  ],
+  code: v => [['draw', 'function grow(length, depth) {'], ['draw', '  drawBranch(length);'], ['base', '  if (depth === 0) return;   // a twig'], ['call', `  for (const turn of [${v.branches === 3 ? `-${v.angle}, 0, ${v.angle}` : `-${v.angle}, ${v.angle}`}]) {`], ['call', '    grow(length * 0.7, depth - 1);'], ['', '  }'], ['end', '}']],
+  build(v){
+    const T = tracer(), nodes = [], a = v.angle;
+    const turns = v.branches === 3 ? [-a, 0, a] : [-a, a];
+    const L0 = 300 * 0.3 / (1 - Math.pow(0.7, v.depth + 1));
+    function grow(x, y, ang, len, depth){
+      const r = ang * Math.PI / 180, x2 = x + len * Math.sin(r), y2 = y - len * Math.cos(r), L = Math.round(len);
+      const node = N('', {x1: x, y1: y, x2, y2, depth}); nodes.push(node);
+      T.enter(node, `grow(${L}, ${depth})`, {length: L, depth});
+      T.emit('draw', `Draw a branch ${L} long. In this call depth is ${depth}.`);
+      if (depth === 0){ T.ret(undefined, undefined, 'base', 'depth is 0. This is a twig, the base case: stop and go back.'); return; }
+      for (const t of turns){
+        T.emit('call', (t === 0 ? 'Keep straight' : `Turn ${Math.abs(t)}° ${t < 0 ? 'left' : 'right'}`) + ` and grow a smaller tree from this tip, with depth ${depth - 1}.`);
+        grow(x2, y2, ang + t, len * 0.7, depth - 1);
+      }
+      T.ret(undefined, undefined, 'end', 'Every smaller tree on this branch is finished. Go back to the branch below.');
+    }
+    grow(0, 0, 0, L0, v.depth);
+    return finish(T, {nodes});
+  },
+  render(M, box){
+    let x0 = 0, x1 = 0, y0 = 0;
+    M.nodes.forEach(n => { x0 = Math.min(x0, n.x2); x1 = Math.max(x1, n.x2); y0 = Math.min(y0, n.y2); });
+    const half = Math.max(-x0, x1, 120) + 16;
+    const s = svg('svg', {viewBox: `${-half} ${y0 - 14} ${half * 2} ${-y0 + 26}`, role: 'img', 'aria-label': 'Tree drawn by the recursive function'});
+    svg('path', {d: `M${-half + 10} 4 H${half - 10}`, stroke: 'var(--line)', 'stroke-width': 2, 'stroke-linecap': 'round'}, s);
+    M.nodes.forEach(n => { n.el = svg('line', {class: 'br' + (n.depth === 0 ? ' leaf' : ''), x1: n.x1, y1: n.y1, x2: n.x2, y2: n.y2, 'stroke-width': 1.4 + n.depth * 1.1}, s); });
+    M.tip = svg('circle', {class: 'tip', r: 4}, s);
+    box.append(s);
+  },
+  paint(M, i, s){
+    M.nodes.forEach(n => { n.el.dataset.s = st(n, i, s); });
+    M.tip.setAttribute('cx', s.node.x2); M.tip.setAttribute('cy', s.node.y2);
+  },
+  reading(M, i){ const d = M.nodes.filter(n => n.callStep <= i).length; return `${d} of ${M.nodes.length} branches drawn`; },
+  why(v, M){
+    const b = v.branches; let rows = '';
+    for (let d = 1; d <= 6; d++){ let t = 0; for (let k = 0; k <= d; k++) t += Math.pow(b, k); rows += `<tr class="${d === v.depth ? 'cur' : ''}"><td>depth ${d}</td><td>${t}</td><td>${d + 1}</td></tr>`; }
+    return `<h3>Small rule, big result</h3>
+<p>grow never knows about the whole tree. It draws <b>one</b> branch and trusts the smaller calls to do the rest. That trust is the main habit of recursive thinking.</p>
+<div class="eq">calls = 1 + ${b} + ${b}² + … + ${b}^depth</div>
+<table class="t"><tr><th>${b} branches</th><th>Calls</th><th>Deepest stack</th></tr>${rows}</table>
+<p>The number of calls multiplies by about ${b} with each level, yet the stack is never deeper than depth + 1. Only one path from trunk to twig is alive at any moment.</p>
+<p class="real">Ferns, river deltas, lungs and lightning all have this shape: the same rule repeated at smaller sizes.</p>`;
+  }
+},
+/* 3 */ {
+  id: 'tree-walk', title: 'Walk a binary tree', card: 'Walk a binary tree',
+  heading: 'Deal with one node, then walk each side the same way',
+  lede: 'A binary tree node holds a value and two smaller trees, left and right. To walk the whole tree, handle one node and call the same function on each side. An empty side (null) is the base case. Where you put the print line decides the order the values come out.',
+  features: ['Every node is itself the root of a smaller tree', 'null is the base case: nothing to do, go back', 'Move one line and the output order changes'],
+  params: [
+    {key: 'order', label: 'When to print', type: 'choice', value: 'in', options: [
+      {value: 'pre', label: 'Before both sides', note: 'Pre-order: node, left, right. A parent always comes out before its children.'},
+      {value: 'in', label: 'Between them', note: 'In-order: left, node, right. On a search tree like these, the values come out sorted.'},
+      {value: 'post', label: 'After both sides', note: 'Post-order: left, right, node. Children finish before their parent.'}]},
+    {key: 'shape', label: 'Tree', type: 'choice', value: 'balanced', options: [
+      {value: 'balanced', label: 'Balanced', note: '7 nodes in 3 levels.'},
+      {value: 'uneven', label: 'Uneven', note: '9 nodes, some sides missing.'},
+      {value: 'lopsided', label: 'Lopsided', note: '5 nodes in a line. The stack gets as deep as the tree is tall.'}]}
+  ],
+  code: v => {
+    const p = ['print', '  print(node.value);'], l = ['left', '  visit(node.left);'], r = ['right', '  visit(node.right);'];
+    const mid = v.order === 'pre' ? [p, l, r] : v.order === 'in' ? [l, p, r] : [l, r, p];
+    return [['', 'function visit(node) {'], ['base', '  if (node === null) return;   // base case'], ...mid, ['end', '}']];
+  },
+  build(v){
+    const T = tracer(), root = mkBin(SHAPES[v.shape]);
+    function visit(n){
+      T.enter(n, n.nil ? 'visit(null)' : `visit(${n.value})`, {node: n.nil ? 'null' : n.value});
+      if (n.nil){ T.ret(undefined, undefined, 'base', 'Nothing here. An empty side is the base case: go straight back.'); return; }
+      T.emit('base', `visit(${n.value}) starts. The node is not empty, so carry on.`);
+      const print = () => { T.out.push(n.value); n.outStep = T.emit('print', `Print ${n.value}.`); };
+      const side = k => { T.emit(k ? 'right' : 'left', `Walk the ${k ? 'right' : 'left'} side of ${n.value} with the same function.`); visit(n.kids[k]); };
+      if (v.order === 'pre') print(); side(0); if (v.order === 'in') print(); side(1); if (v.order === 'post') print();
+      T.ret(undefined, undefined, 'end', `Both sides of ${n.value} are done. Go back to whoever called.`);
+    }
+    visit(root);
+    return finish(T, {root, nodes: flat(root)});
+  },
+  render(M, box){
+    let x = 0, maxD = 0;
+    (function lay(n, d){ n.d = d; maxD = Math.max(maxD, d); if (!n.kids.length){ x += n.nil ? .55 : 1; n.lx = x; x += n.nil ? .55 : 1; } else { n.kids.forEach(k => lay(k, d + 1)); n.lx = (n.kids[0].lx + n.kids[1].lx) / 2; } })(M.root, 0);
+    const W = Math.max(420, x * 30 + 60), H = maxD * 62 + 70, sx = (W - 60) / x;
+    const s = svg('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Binary tree'});
+    M.nodes.forEach(n => { n.x = 30 + n.lx * sx; n.y = 34 + n.d * 62; });
+    M.nodes.forEach(n => n.kids.forEach(k => { k.edge = svg('line', {class: 'edge', x1: n.x, y1: n.y, x2: k.x, y2: k.y}, s); }));
+    M.nodes.forEach(n => { const g = svg('g', {class: 'bn' + (n.nil ? ' nil' : '')}, s); svg('circle', {cx: n.x, cy: n.y, r: n.nil ? 11 : 18}, g); svg('text', {x: n.x, y: n.y}, g).textContent = n.label; n.el = g; });
+    box.append(s);
+  },
+  paint(M, i, s){
+    M.nodes.forEach(n => { const state = st(n, i, s); n.el.dataset.s = state; n.el.dataset.p = i >= n.outStep ? '1' : '0'; if (n.edge) n.edge.dataset.s = state; });
+  },
+  reading(M, i, s){ return i === M.steps.length - 1 ? `Printed all ${M.out.length} values` : `${s.outN} of ${M.out.length} values printed`; },
+  why(v, M){
+    const real = M.nodes.filter(n => !n.nil), run = o => { const r = []; (function go(n){ if (n.nil) return; if (o === 'pre') r.push(n.value); go(n.kids[0]); if (o === 'in') r.push(n.value); go(n.kids[1]); if (o === 'post') r.push(n.value); })(M.root); return r.join(' '); };
+    const row = (o, name) => `<tr class="${v.order === o ? 'cur' : ''}"><td>${name}</td><td>${run(o)}</td></tr>`;
+    return `<h3>Same walk, three orders</h3>
+<p>The walk always goes down the left side first, then the right. Only the moment of printing changes.</p>
+<table class="t"><tr><th>Print</th><th>Output for this tree</th></tr>${row('pre', 'before')}${row('in', 'between')}${row('post', 'after')}</table>
+<p>This tree has <b>${real.length}</b> nodes, so visit runs ${real.length} times on real nodes and ${real.length + 1} times on null: <b>${M.calls}</b> calls. Each node is handled exactly once.</p>
+<p>The deepest stack here was <b>${M.maxDepth}</b> frames: the height of the tree plus one null. A balanced tree with a million nodes is only about 20 levels tall, so the stack stays small. A lopsided tree is as tall as its node count.</p>
+<p class="real">Compilers evaluate 2 + 3 × 4 with a post-order walk: both sides of an operator are worked out before the operator itself.</p>`;
+  }
+},
+/* 4 */ {
+  id: 'folders', title: 'Add up a folder', card: 'Folders and files',
+  heading: 'A folder holds files, and more folders',
+  lede: 'The size of a folder is the size of everything inside it, and some of those things are folders too. So the function asks each child for its size. A file answers with its own size: that is the base case. A folder asks its own children the same question and adds up what comes back.',
+  features: ['A file answers at once', 'A folder adds up the answers of its children', 'Find stops early: once the file turns up, nobody looks further'],
+  params: [
+    {key: 'task', label: 'Job', type: 'choice', value: 'size', options: [
+      {value: 'size', label: 'Total size', note: 'Every file and folder must be visited.'},
+      {value: 'find', label: 'Find a file', note: 'The walk can stop as soon as the name matches.'}]},
+    {key: 'target', label: 'Look for', type: 'choice', value: 'Card.js', show: v => v.task === 'find', options: [
+      {value: 'Card.js', label: 'Card.js', note: 'Three folders deep.'},
+      {value: 'index.html', label: 'index.html', note: 'The first thing in the top folder.'},
+      {value: 'missing.txt', label: 'missing.txt', note: 'Not there. Every item gets checked.'}]}
+  ],
+  code: v => v.task === 'size'
+    ? [['', 'function sizeOf(item) {'], ['base', '  if (item.isFile) return item.size;   // base case'], ['init', '  let total = 0;'], ['call', '  for (const child of item.children) {'], ['call', '    total += sizeOf(child);'], ['', '  }'], ['ret', '  return total;'], ['', '}']]
+    : [['', 'function find(item, name) {'], ['hit', '  if (item.name === name) return item.path;'], ['base', '  if (item.isFile) return null;   // base case'], ['loop', '  for (const child of item.children) {'], ['call', '    const found = find(child, name);'], ['early', '    if (found) return found;   // stop early'], ['', '  }'], ['ret', '  return null;'], ['', '}']],
+  build(v){
+    const T = tracer(), root = mkFiles(FILES, '', 0); let result;
+    if (v.task === 'size'){
+      result = fold(T, root, {
+        acc: 'total', init: 0, fmt: kb, add: (a, b) => a + b, done: a => a,
+        frame: n => `sizeOf(${n.name})`, isLeaf: n => n.isFile, leaf: n => n.size,
+        leafNote: (n, x) => `${n.name} is a file. Base case: answer its own size, ${kb(x)}.`,
+        initNote: n => `${n.name} is a folder` + (n.kids.length ? `. Start its total at 0 and ask each of its ${n.kids.length} children.` : ' with nothing inside. The loop will run zero times.'),
+        askNote: (n, c) => `Inside ${n.name}: ask for the size of ${c.name}, and wait.`,
+        gotNote: (n, c, x, a) => `${c.name} answered ${kb(x)}. The total for ${n.name} is now ${kb(a)}.`,
+        retNote: (n, r) => `Everything in ${n.name} is counted. Answer ${kb(r)}.`
+      });
+    } else {
+      const name = v.target;
+      result = (function find(n){
+        T.enter(n, `find(${n.name})`, {name});
+        if (n.name === name) return T.ret(n.path, 'path', 'hit', `${n.name} matches. Answer its path: ${n.path}`);
+        if (n.isFile) return T.ret(null, 'null', 'base', `${n.name} is not ${name}, and a file has nothing inside. Base case: answer null.`);
+        T.emit('loop', `${n.name} is a folder` + (n.kids.length ? '. Look through its children one by one.' : ' with nothing inside.'));
+        for (const c of n.kids){
+          T.emit('call', `Inside ${n.name}: ask ${c.name} whether it holds ${name}.`);
+          const found = find(c);
+          if (found){ T.set('found', 'path'); return T.ret(found, 'path', 'early', `${c.name} found it. Stop the loop in ${n.name} and pass the path up. The remaining items are never opened.`); }
+          T.set('found', 'null'); T.emit('call', `${c.name} answered null. Try the next child of ${n.name}.`);
+        }
+        return T.ret(null, 'null', 'ret', `Nothing in ${n.name} matched. Answer null.`);
+      })(root);
+    }
+    return finish(T, {root, nodes: flat(root), result});
+  },
+  render(M, box, v){
+    const wrap = el('div', 'files');
+    M.nodes.forEach(n => {
+      const r = el('div', 'frow ' + (n.isFile ? 'file' : 'dir') + (v.task === 'find' && n.name === v.target ? ' target' : ''));
+      r.style.paddingLeft = (8 + n.depth * 20) + 'px';
+      r.append(el('span', 'ico'), el('span', 'nm', n.name + (n.isFile ? '' : '/')), n.valEl = el('span', 'val'));
+      wrap.append(r); n.el = r;
+    });
+    box.append(wrap);
+  },
+  paint(M, i, s, v){
+    M.nodes.forEach(n => {
+      const state = st(n, i, s), back = i >= n.retStep; n.el.dataset.s = state;
+      if (v.task === 'size') n.valEl.textContent = n.isFile ? kb(n.size) : back ? kb(n.retVal) : state === 'idle' ? '' : '…';
+      else { n.valEl.textContent = back ? (n.retVal ? 'found' : 'null') : state === 'idle' ? '' : '…'; n.el.classList.toggle('hit', back && n.name === v.target); }
+    });
+  },
+  reading(M, i, s, v){
+    const seen = M.nodes.filter(n => n.callStep <= i).length;
+    if (i < M.steps.length - 1) return `${seen} of ${M.nodes.length} items opened`;
+    return v.task === 'size' ? `sizeOf(project) = ${kb(M.result)}` : M.result ? `Found after ${seen} of ${M.nodes.length} items` : `Not found. All ${M.nodes.length} items checked`;
+  },
+  why(v, M){
+    const n = M.nodes.length;
+    return v.task === 'size' ? `<h3>Leaf answers, parent combines</h3>
+<p>sizeOf runs once for every file and folder: <b>${M.calls}</b> calls for ${n} items. No item is counted twice and none is skipped.</p>
+<div class="eq">size(file) = its own size<br>size(folder) = sum of size(child)</div>
+<p>The stack was at most <b>${M.maxDepth}</b> frames deep. That is the longest path, project / src / components / Card.js, and not the number of items.</p>
+<p>The empty folder <b>fonts</b> needed no special rule. Its loop ran zero times and it answered 0.</p>
+<p class="real">A loop over the children with a recursive call inside is the standard shape for any nested data: folders, comment threads, JSON, menus, organisation charts.</p>`
+    : `<h3>Returning early</h3>
+<p>find made <b>${M.calls}</b> calls for ${n} items${M.calls < n ? '. It stopped as soon as the name matched' : ', because the name was never matched'}.</p>
+<p>The line <b>if (found) return found;</b> does the stopping. Each waiting folder gets a path back, leaves its own loop at once, and hands the same path to the folder above it. One answer travels all the way up the stack.</p>
+<p>When the file is missing, the walk has no way to know until it has opened every folder. That is the worst case: ${n} calls.</p>
+<p class="real">Searching for a file by name in a file manager or with the find command walks the folders in this way.</p>`;
+  }
+},
+/* 5 */ {
+  id: 'dom-walk', title: 'Walk the DOM', card: 'Walk the DOM',
+  heading: 'A web page is a tree the browser has already built',
+  lede: 'The browser reads HTML text and turns it into the DOM, a tree of nodes. An element node holds child nodes, and each of those may hold more. A text node holds only text, so it is a leaf. Any question about the whole page becomes: answer it for one node, and ask the children the same question.',
+  features: ['Left: the HTML text. Right: the tree the browser made from it', 'Text nodes are the leaves, so they are the base case', 'Three different questions, one shape of function'],
+  params: [
+    {key: 'task', label: 'Question', type: 'choice', value: 'count', options: [
+      {value: 'count', label: 'How many elements?', note: 'Each element counts itself as 1 and adds the counts of its children.'},
+      {value: 'depth', label: 'How deep?', note: 'Each element answers 1 more than its deepest child.'},
+      {value: 'text', label: 'What text?', note: 'Each element joins the text of its children, in order.'}]},
+    {key: 'page', label: 'Page', type: 'choice', value: 'article', options: [
+      {value: 'article', label: 'Article', note: 'A header with links, then a paragraph and a list.'},
+      {value: 'card', label: 'Card', note: 'One div with a picture, a heading, a line of text and a button.'}]}
+  ],
+  code: v => ({
+    count: [['', 'function countElements(node) {'], ['base', '  if (node.nodeType !== Node.ELEMENT_NODE) return 0;'], ['init', '  let count = 1;   // this element'], ['call', '  for (const child of node.childNodes) {'], ['call', '    count += countElements(child);'], ['', '  }'], ['ret', '  return count;'], ['', '}']],
+    depth: [['', 'function depthOf(node) {'], ['base', '  if (node.nodeType !== Node.ELEMENT_NODE) return 0;'], ['init', '  let deepest = 0;'], ['call', '  for (const child of node.childNodes) {'], ['call', '    deepest = Math.max(deepest, depthOf(child));'], ['', '  }'], ['ret', '  return deepest + 1;'], ['', '}']],
+    text: [['', 'function textOf(node) {'], ['base', '  if (node.nodeType === Node.TEXT_NODE) return node.data;'], ['init', '  let text = "";'], ['call', '  for (const child of node.childNodes) {'], ['call', '    text += textOf(child);'], ['', '  }'], ['ret', '  return text;'], ['', '}']]
+  })[v.task],
+  build(v){
+    const T = tracer(), root = mkDom(v.page), q = s => '"' + clip(s, 14) + '"';
+    const kinds = {
+      count: {fn: 'countElements', acc: 'count', init: 1, fmt: String, add: (a, b) => a + b, done: a => a, leaf: () => 0,
+        leafNote: n => `${n.label} is a text node, not an element. Base case: answer 0.`,
+        initNote: n => `${n.label} is an element. Count it as 1, then ask its ${n.kids.length || 'zero'} child node${n.kids.length === 1 ? '' : 's'}.`,
+        gotNote: (n, c, x, a) => `${c.label} answered ${x}. The count for ${n.label} is now ${a}.`,
+        retNote: (n, r) => `${n.label} and everything inside it: ${r} element${r === 1 ? '' : 's'}. Answer ${r}.`},
+      depth: {fn: 'depthOf', acc: 'deepest', init: 0, fmt: String, add: Math.max, done: a => a + 1, leaf: () => 0,
+        leafNote: n => `${n.label} is a text node. It adds no element level. Base case: answer 0.`,
+        initNote: n => `${n.label} is an element. Find its deepest child, starting from 0.`,
+        gotNote: (n, c, x, a) => `${c.label} answered ${x}. The deepest child of ${n.label} so far is ${a}.`,
+        retNote: (n, r) => `${n.label} is one level above its deepest child. Answer ${r}.`},
+      text: {fn: 'textOf', acc: 'text', init: '', fmt: q, add: (a, b) => a + b, done: a => a, leaf: n => n.text,
+        leafNote: n => `${n.label} is a text node. Base case: answer its own text.`,
+        initNote: n => `${n.label} is an element. Start with empty text and join what its children answer.`,
+        gotNote: (n, c, x, a) => `${c.label} answered ${q(x)}. Add it to the text for ${n.label}.`,
+        retNote: (n, r) => `${n.label} answers all the text inside it: ${q(r)}`}
+    };
+    const k = kinds[v.task];
+    const result = fold(T, root, Object.assign({frame: n => `${k.fn}(${n.label})`, isLeaf: n => n.isText, askNote: (n, c) => `Inside ${n.label}: ask its child ${c.label} the same question, and wait.`}, k));
+    return finish(T, {root, nodes: flat(root), result, fn: k.fn});
+  },
+  render(M, box){
+    const wrap = el('div', 'dom'), a = el('div', 'dom-col'), b = el('div', 'dom-col'), src = el('div', 'src');
+    a.append(el('h4', '', 'HTML text'), src);
+    /* source listing written back out from the tree, one line per node where possible */
+    M.lines = [];
+    const line = (text, d, nodes) => { const e = el('div', '', '  '.repeat(d) + text); src.append(e); M.lines.push({e, nodes}); };
+    (function write(n, d){
+      if (n.isText) return line(n.text.trim(), d, [n]);
+      const t = n.tag;
+      if (!n.kids.length) return line(`<${t}>`, d, [n]);
+      if (n.kids.length === 1 && n.kids[0].isText) return line(`<${t}>${n.kids[0].text.trim()}</${t}>`, d, [n, n.kids[0]]);
+      line(`<${t}>`, d, [n]); n.kids.forEach(k => write(k, d + 1)); line(`</${t}>`, d, [n]);
+    })(M.root, 0);
+    /* tree drawn left to right */
+    const colW = [], bw = n => n.label.length * 6.7 + 14; let row = 0;
+    (function lay(n, d){ n.d = d; colW[d] = Math.max(colW[d] || 0, bw(n)); if (!n.kids.length) n.r = row++; else { n.kids.forEach(k => lay(k, d + 1)); n.r = (n.kids[0].r + n.kids[n.kids.length - 1].r) / 2; } })(M.root, 0);
+    const colX = [10]; colW.forEach((w, d) => colX[d + 1] = colX[d] + w + 20);
+    const RH = 32, W = colX[colW.length] - 10, H = row * RH + 14;
+    const s = svg('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'DOM tree'});
+    M.nodes.forEach(n => { n.x = colX[n.d]; n.y = 8 + n.r * RH + 15; n.w = bw(n); });
+    M.nodes.forEach(n => n.kids.forEach(k => { const mx = n.x + n.w + 10; k.edge = svg('path', {class: 'edge', d: `M${n.x + n.w} ${n.y} H${mx} V${k.y} H${k.x}`}, s); }));
+    M.nodes.forEach(n => {
+      const g = svg('g', {class: 'dn' + (n.isText ? ' txt' : '')}, s);
+      svg('rect', {x: n.x, y: n.y - 11, width: n.w, height: 22, rx: 6}, g); svg('text', {x: n.x + 7, y: n.y}, g).textContent = n.label; n.el = g;
+      const bg = svg('g', {class: 'badge'}, s), txt = clip(String(n.retShown), 9), w = txt.length * 6 + 10;
+      svg('rect', {x: n.x + n.w - w + 6, y: n.y - 20, width: w, height: 14, rx: 7}, bg); svg('text', {x: n.x + n.w - w / 2 + 6, y: n.y - 12.5}, bg).textContent = txt; n.badge = bg;
+    });
+    const holder = el('div', 'dom-tree'); holder.append(s); b.append(el('h4', '', 'DOM tree'), holder);
+    wrap.append(a, b); box.append(wrap);
+  },
+  paint(M, i, s){
+    M.nodes.forEach(n => { const state = st(n, i, s); n.el.dataset.s = state; if (n.edge) n.edge.dataset.s = state; n.badge.style.display = i >= n.retStep ? '' : 'none'; });
+    let first = null;
+    M.lines.forEach(l => { const on = l.nodes.includes(s.node); l.e.classList.toggle('on', on); l.e.classList.toggle('seen', l.nodes.some(n => n.callStep <= i)); if (on && !first) first = l.e; });
+    if (first && first.parentNode.scrollHeight > first.parentNode.clientHeight) first.parentNode.scrollTop = first.offsetTop - first.parentNode.clientHeight / 2;
+  },
+  reading(M, i, s, v){
+    if (i < M.steps.length - 1) return `${M.nodes.filter(n => n.callStep <= i).length} of ${M.nodes.length} nodes visited`;
+    return `${M.fn}(${M.root.label}) = ${v.task === 'text' ? '"' + clip(M.result, 44) + '"' : M.result}`;
+  },
+  why(v, M){
+    const els = M.nodes.filter(n => !n.isText).length, tx = M.nodes.length - els;
+    const real = {count: 'Paste countElements into the DevTools console of any site and run <b>countElements(document.body)</b>. It works on real pages as written.',
+      depth: 'Paste depthOf into the DevTools console of any site and run <b>depthOf(document.body)</b> to see how deeply that page nests its elements.',
+      text: 'The browser has this walk built in: <b>node.textContent</b> gives the same joined text, and it also keeps the spaces and line breaks between tags that this bench leaves out.'}[v.task];
+    return `<h3>The folder function, again</h3>
+<p>This tree has <b>${els}</b> element nodes and <b>${tx}</b> text nodes. The function ran once on each: <b>${M.calls}</b> calls, with at most <b>${M.maxDepth}</b> on the stack.</p>
+<p>Compare the code with the folder lesson. A text node plays the part of a file, an element plays the part of a folder, and childNodes is the list of children. Only the combining step differs.</p>
+<table class="t"><tr><th>Question</th><th>Leaf answers</th><th>Parent combines</th></tr>
+<tr class="${v.task === 'count' ? 'cur' : ''}"><td>count</td><td>0</td><td>1 + sum</td></tr>
+<tr class="${v.task === 'depth' ? 'cur' : ''}"><td>depth</td><td>0</td><td>1 + max</td></tr>
+<tr class="${v.task === 'text' ? 'cur' : ''}"><td>text</td><td>its text</td><td>join</td></tr></table>
+<p>The HTML on the left was parsed by your browser's own DOMParser. Text nodes that hold only spaces and line breaks are left out of the picture to keep it small.</p>
+<p class="real">${real}</p>`;
+  }
+}
+];
+
+/* ---------- app state ---------- */
+const S = {lesson: LESSONS[0], values: {}, M: null, i: 0, playing: false, timer: null, ms: 600, tab: 'overview', done: new Set(), saved: {}};
+try { S.done = new Set(JSON.parse(localStorage.getItem('recursion-bench:done') || '[]')); } catch (e) {}
+const saveDone = () => { try { localStorage.setItem('recursion-bench:done', JSON.stringify([...S.done])); } catch (e) {} };
+
+/* ---------- rendering ---------- */
+function paintProgress(){
+  const n = LESSONS.filter(l => S.done.has(l.id)).length;
+  $('#progText').textContent = `${n} of ${LESSONS.length} lessons run`;
+  $('#progBar').style.width = (n / LESSONS.length * 100) + '%';
+  document.querySelectorAll('#cards li').forEach((li, k) => li.classList.toggle('is-done', S.done.has(LESSONS[k].id)));
+}
+function buildCards(){
+  const ol = $('#cards');
+  LESSONS.forEach((l, k) => {
+    const li = el('li'), b = el('button');
+    b.append(el('span', 'num', String(k + 1)), el('span', 'tt', l.card), el('span', 'tick', '✓'));
+    b.setAttribute('aria-label', `Lesson ${k + 1}: ${l.title}`);
+    b.addEventListener('click', () => setLesson(l.id));
+    li.append(b); ol.append(li);
+  });
+}
+function buildControls(){
+  const box = $('#controls'); box.textContent = '';
+  S.lesson.params.forEach(p => {
+    const c = el('div', 'ctl'), lab = el('div', 'ctl-label'), name = el('span', '', p.label), val = el('span');
+    lab.append(name, val); c.append(lab); c.dataset.key = p.key;
+    if (p.type === 'range'){
+      const r = el('input'); r.type = 'range'; r.id = 'ctl-' + p.key; r.min = p.min; r.max = p.max; r.step = p.step; r.value = S.values[p.key];
+      r.setAttribute('aria-label', p.label);
+      r.addEventListener('input', () => setValue(p.key, Number(r.value)));
+      c.append(r);
+    } else {
+      const seg = el('div', 'seg'); seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', p.label);
+      p.options.forEach(o => { const b = el('button', '', o.label); b.setAttribute('role', 'radio'); b.addEventListener('click', () => setValue(p.key, o.value)); seg.append(b); });
+      c.append(seg, el('p', 'ctl-note'));
+    }
+    box.append(c);
+  });
+  syncControls();
+}
+function syncControls(){
+  S.lesson.params.forEach(p => {
+    const c = document.querySelector(`.ctl[data-key="${p.key}"]`), v = S.values[p.key];
+    c.hidden = !!(p.show && !p.show(S.values));
+    if (p.type === 'range') c.querySelector('.ctl-label span:last-child').textContent = v + (p.unit || '');
+    else {
+      const bs = c.querySelectorAll('.seg button'); let note = '';
+      p.options.forEach((o, k) => { bs[k].setAttribute('aria-checked', String(o.value === v)); if (o.value === v) note = o.note || ''; });
+      const n = c.querySelector('.ctl-note'); n.textContent = note; n.hidden = !note;
+    }
+  });
+}
+function buildModel(keepEnd){
+  const L = S.lesson;
+  S.M = L.build(S.values);
+  const viz = $('#viz'); viz.textContent = ''; L.render(S.M, viz, S.values);
+  $('#code').innerHTML = L.code(S.values).map(([tag, t]) => `<div data-tag="${tag}">${hl(t)}</div>`).join('');
+  $('#tab-why').innerHTML = L.why(S.values, S.M);
+  $('#scrub').max = S.M.steps.length - 1;
+  S.i = keepEnd ? S.M.steps.length - 1 : 0;
+  paint();
+}
+function paint(){
+  const L = S.lesson, M = S.M, i = S.i, s = M.steps[i], last = M.steps.length - 1;
+  L.paint(M, i, s, S.values);
+  const note = $('#note'); note.textContent = s.note; note.classList.toggle('err', !!s.error);
+  const rd = $('#reading'); rd.textContent = L.reading(M, i, s, S.values); rd.classList.toggle('err', !!s.error);
+  const fr = $('#frames'); fr.textContent = '';
+  s.stack.forEach((f, k) => {
+    const li = el('li', k === s.stack.length - 1 ? 'top-frame' + (s.error ? ' err' : '') : '', f.label);
+    const loc = Object.keys(f.locals).map(key => `${key} = ${f.locals[key]}`).join(' · ');
+    if (loc) li.append(el('small', '', loc)); fr.append(li);
+  });
+  $('#stackCount').textContent = s.stack.length + (s.stack.length === 1 ? ' frame' : ' frames');
+  document.querySelectorAll('#code div').forEach(d => d.classList.toggle('on', !!s.line && d.dataset.tag === s.line));
+  const out = $('#out'); out.hidden = !M.out.length;
+  if (M.out.length){ out.textContent = ''; out.append(el('b', '', 'Printed')); M.out.slice(0, s.outN).forEach(x => out.append(el('span', '', String(x)))); }
+  $('#scrub').value = i;
+  $('#count').textContent = `step ${i + 1} / ${last + 1}`;
+  $('#bBack').disabled = $('#bRestart').disabled = i === 0;
+  $('#bFwd').disabled = i === last;
+  $('#playTxt').textContent = S.playing ? 'Pause' : i === last ? 'Replay' : 'Play';
+  $('#playIco').innerHTML = S.playing ? '<path d="M3 2h4v12H3zM9 2h4v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
+  if (i === last && !S.done.has(L.id)){ S.done.add(L.id); saveDone(); paintProgress(); }
+}
+function setTab(t){
+  S.tab = t;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  ['overview', 'code', 'why'].forEach(k => { $('#tab-' + k).hidden = k !== t; });
+}
+function setLesson(id, fromHash){
+  const L = LESSONS.find(l => l.id === id) || LESSONS[0], k = LESSONS.indexOf(L);
+  stop(); S.lesson = L;
+  S.values = Object.assign({}, ...L.params.map(p => ({[p.key]: p.value})), S.saved[L.id]);
+  $('#lessonNo').textContent = `Lesson ${k + 1} of ${LESSONS.length}`;
+  $('#lessonTitle').textContent = L.title;
+  document.title = 'Recursion Workbench';
+  $('#tab-overview').innerHTML = `<h3>${esc(L.heading)}</h3><p>${esc(L.lede)}</p><ul class="feats">${L.features.map((f, n) => `<li><i>${n + 1}</i><span>${esc(f)}</span></li>`).join('')}</ul>
+<p class="keys">Press <b>Play</b>, or step with <kbd>←</kbd> <kbd>→</kbd>. <kbd>Space</kbd> plays and pauses, <kbd>R</kbd> restarts, <kbd>[</kbd> <kbd>]</kbd> change lesson. Open the <b>Code</b> tab to change the inputs and follow the running line.</p>`;
+  document.querySelectorAll('#cards button').forEach((b, n) => b.setAttribute('aria-current', String(n === k)));
+  $('#prevL').disabled = k === 0; $('#nextL').disabled = k === LESSONS.length - 1;
+  buildControls(); buildModel(false); setTab('overview');
+  if (!fromHash) { try { history.replaceState(null, '', '#' + L.id); } catch (e) { try { location.hash = L.id; } catch (e2) {} } }
+}
+function setValue(key, val){
+  if (S.values[key] === val) return;
+  const atEnd = S.i === S.M.steps.length - 1 && S.i > 0;
+  stop(); S.values[key] = val; S.saved[S.lesson.id] = Object.assign({}, S.values);
+  syncControls(); buildModel(atEnd && S.lesson.id === 'fractal-tree');
+}
+
+/* ---------- transport ---------- */
+function go(i){ S.i = Math.max(0, Math.min(S.M.steps.length - 1, i)); paint(); }
+function stop(){ S.playing = false; clearTimeout(S.timer); }
+function tick(){
+  if (!S.playing) return;
+  if (S.i >= S.M.steps.length - 1){ stop(); paint(); return; }
+  go(S.i + 1);
+  if (S.i >= S.M.steps.length - 1){ stop(); paint(); return; }
+  S.timer = setTimeout(tick, S.ms);
+}
+function toggle(){
+  if (S.playing){ stop(); paint(); return; }
+  if (S.i >= S.M.steps.length - 1) S.i = 0;
+  if (S.tab === 'overview') setTab('code');
+  S.playing = true; paint(); S.timer = setTimeout(tick, Math.min(S.ms, 350));
+}
+function shiftLesson(d){ const k = LESSONS.indexOf(S.lesson) + d; if (k >= 0 && k < LESSONS.length) setLesson(LESSONS[k].id); }
+
+$('#bPlay').addEventListener('click', toggle);
+$('#bFwd').addEventListener('click', () => { stop(); go(S.i + 1); });
+$('#bBack').addEventListener('click', () => { stop(); go(S.i - 1); });
+$('#bRestart').addEventListener('click', () => { stop(); go(0); });
+$('#scrub').addEventListener('input', e => { stop(); go(Number(e.target.value)); });
+$('#prevL').addEventListener('click', () => shiftLesson(-1));
+$('#nextL').addEventListener('click', () => shiftLesson(1));
+document.querySelectorAll('#speed button').forEach(b => b.addEventListener('click', () => {
+  S.ms = Number(b.dataset.ms);
+  document.querySelectorAll('#speed button').forEach(x => x.setAttribute('aria-checked', String(x === b)));
+}));
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target.tagName, inField = t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA';
+  if (e.key === ' ' && t !== 'BUTTON' && !inField){ e.preventDefault(); toggle(); }
+  else if (e.key === 'ArrowRight' && !inField){ e.preventDefault(); stop(); go(S.i + 1); }
+  else if (e.key === 'ArrowLeft' && !inField){ e.preventDefault(); stop(); go(S.i - 1); }
+  else if ((e.key === 'r' || e.key === 'R') && !inField){ stop(); go(0); }
+  else if (e.key === '[') shiftLesson(-1);
+  else if (e.key === ']') shiftLesson(1);
+  else if (/^[1-5]$/.test(e.key) && !inField) setLesson(LESSONS[Number(e.key) - 1].id);
+});
+window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id && id !== S.lesson.id && LESSONS.some(l => l.id === id)) setLesson(id, true); });
+
+buildCards(); paintProgress();
+setLesson(location.hash.slice(1) || LESSONS[0].id, true);
+</script>
+</body>
+</html>
