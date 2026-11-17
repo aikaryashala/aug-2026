@@ -150,7 +150,7 @@ Two things to notice.
 
 ### In real code
 
-Python comes with a small drawing demo that makes the same kind of tree: [turtledemo/tree.py](https://sources.debian.org/src/python3.14/3.14.3-1/Lib/turtledemo/tree.py). Its function `tree` calls itself with a shorter branch each time, `l*f`, where f is the shortening factor.
+Python comes with a small drawing demo that makes the same kind of tree: [turtledemo/tree.py](https://github.com/python/cpython/blob/3.14/Lib/turtledemo/tree.py). Its function `tree` calls itself with a shorter branch each time, `l*f`, where f is the shortening factor.
 
 Compare its base case with ours. We stop when depth is 0. It stops when the branch is too short: it only continues `if l > 3`. Both are the same idea. Something gets smaller on every call, and a test on that thing ends the recursion.
 
@@ -314,7 +314,7 @@ The line `if (found) return found;` does the stopping. A folder gets a path back
 
 ### In real code
 
-Go's standard library walks real folders the same way. The function is named walkDir, and its own comment says that it recursively descends the path: [io/fs/walk.go](https://golang.google.cn/src/io/fs/walk.go).
+Go's standard library walks real folders the same way. The function is named walkDir, and its own comment says that it recursively descends the path: [io/fs/walk.go](https://go.dev/src/io/fs/walk.go).
 
 It has the same shape as our code. Each entry in a directory can say whether it is a directory. For a directory, walkDir reads the entries inside it and calls itself for each one. Your own function, which walkDir calls for every entry, can also return a special value to stop the walk early, like our find.
 
@@ -381,7 +381,7 @@ For the text question you do not need to write the walk. The browser has it buil
 
 ### In real code
 
-The library [domutils](https://github.com/fb55/domutils) works on a DOM-like tree outside the browser. Its tree comes from the HTML parser htmlparser2, and the same tree is used by cheerio. Read its text function here: [stringify.js](https://chromium.googlesource.com/devtools/devtools-frontend/+/main/node_modules/domutils/lib/esm/stringify.js).
+The library [domutils](https://github.com/fb55/domutils) works on a DOM-like tree outside the browser. Its tree comes from the HTML parser htmlparser2, and the same tree is used by cheerio. Read its text function here: [stringify.ts](https://github.com/fb55/domutils/blob/master/src/stringify.ts).
 
 Its function `textContent` has the same shape as our text walk. If the node has children, it calls textContent on the children. If the node is text, it returns `node.data`. For anything else it returns an empty string. The names differ a little (children in place of childNodes), and the idea is the same.
 
@@ -456,8 +456,8 @@ This assumption is safe when two things are true. The base case is correct. And 
 The open-source code linked in the chapters:
 
 - Python documentation, the recursion limit: [sys.setrecursionlimit](https://docs.python.org/3/library/sys.html#sys.setrecursionlimit)
-- Python, recursive tree drawing: [turtledemo/tree.py](https://sources.debian.org/src/python3.14/3.14.3-1/Lib/turtledemo/tree.py)
+- Python, recursive tree drawing: [turtledemo/tree.py](https://github.com/python/cpython/blob/3.14/Lib/turtledemo/tree.py)
 - Go tour, binary tree type: [tree/tree.go](https://go.googlesource.com/tour/+/refs/tags/v0.1.0/tree/tree.go)
 - Go talk, in-order walk: [tree-walk.go](https://go.googlesource.com/talks/+/7426e6461029fb2f2fec878911ca8cca745dd7af/content/2014/go4gophers/tree-walk.go)
-- Go standard library, directory walk: [io/fs/walk.go](https://golang.google.cn/src/io/fs/walk.go)
-- domutils, text of a DOM tree: [project page](https://github.com/fb55/domutils) and [stringify.js](https://chromium.googlesource.com/devtools/devtools-frontend/+/main/node_modules/domutils/lib/esm/stringify.js)
+- Go standard library, directory walk: [io/fs/walk.go](https://go.dev/src/io/fs/walk.go)
+- domutils, text of a DOM tree: [project page](https://github.com/fb55/domutils) and [stringify.ts](https://github.com/fb55/domutils/blob/master/src/stringify.ts)
